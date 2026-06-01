@@ -7,9 +7,12 @@ import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { PerformanceTable } from '../components/dashboard/PerformanceTable';
 import { AiInsightsCard } from '../components/dashboard/AiInsightsCard';
 import { Activity, Zap, Bug, CheckSquare } from 'lucide-react';
+import { dashboardApi, DashboardSummary } from '../api/dashboard';
 
 export const DashboardPage: React.FC = () => {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,8 +23,21 @@ export const DashboardPage: React.FC = () => {
       navigate('/login');
     } else {
       setUser(JSON.parse(storedUser));
+      fetchSummary();
     }
   }, [navigate]);
+
+  const fetchSummary = async () => {
+    try {
+      setLoading(true);
+      const data = await dashboardApi.getSummary();
+      setSummary(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -49,29 +65,29 @@ export const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
           <StatCard
             title="Active Runs"
-            value="14"
-            subtitle={<span className="text-[#0F62FE] font-bold">+2 from last hour</span>}
+            value={loading ? '-' : summary?.stats.activeRuns.toString() || '0'}
+            subtitle={<span className="text-[#0F62FE] font-bold">Currently executing</span>}
             icon={<Activity size={14} />}
             borderColor="bg-[#0F62FE]"
           />
           <StatCard
             title="AI Efficiency"
-            value="94.2%"
-            subtitle={<span className="text-[#161616] dark:text-[#E0E0E0] font-semibold">Machine intelligence optimized</span>}
+            value="--"
+            subtitle={<span className="text-[#161616] dark:text-[#E0E0E0] font-semibold">Coming Soon</span>}
             icon={<Zap size={14} className="text-[#8A3FFC]" />}
           />
           <StatCard
-            title="Open Defects"
-            value="28"
-            subtitle={<span className="text-[#DA1E28] font-bold">! 4 Critical priority</span>}
+            title="Failed Tests"
+            value={loading ? '-' : summary?.stats.openDefects.toString() || '0'}
+            subtitle={<span className="text-[#DA1E28] font-bold">Requires attention</span>}
             icon={<Bug size={14} className="text-[#DA1E28]" />}
           />
           <StatCard
             title="Test Coverage"
-            value="88%"
+            value={loading ? '-' : `${summary?.stats.testCoverage || 0}%`}
             subtitle={
               <div className="w-full bg-[#E0E0E0] dark:bg-[#393939] h-1.5 mt-2 rounded-full overflow-hidden">
-                <div className="bg-[#0F62FE] h-full" style={{ width: '88%' }}></div>
+                <div className="bg-[#0F62FE] h-full" style={{ width: `${summary?.stats.testCoverage || 0}%` }}></div>
               </div>
             }
             icon={<CheckSquare size={14} />}
@@ -89,35 +105,32 @@ export const DashboardPage: React.FC = () => {
                 <h2 className="font-mono font-bold text-[11px] text-[#161616] dark:text-white uppercase tracking-wider">My Projects</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-t-0 border-[#E0E0E0] dark:border-[#2D2D39] rounded-b-[4px] overflow-hidden bg-white dark:bg-[#121212]">
-                <div className="border-b md:border-b-0 md:border-r border-[#E0E0E0] dark:border-[#2D2D39]">
-                  <ProjectCard
-                    title="Enterprise API v4"
-                    description="Scaling internal endpoints for global transaction reconciliation and audit trails."
-                    status="Active"
-                    users={4}
-                    updatedText="View Details"
-                    gradientFrom="from-[#0B1521]"
-                    gradientTo="to-[#070C12]"
-                  />
-                </div>
-                <div>
-                  <ProjectCard
-                    title="Smart Checkout UI"
-                    description="Applying generative testing to edge cases in the mobile payment gateway integration."
-                    status="Active"
-                    isAiEnabled={true}
-                    users={1}
-                    updatedText="Optimize Flow"
-                    gradientFrom="from-[#1A1025]"
-                    gradientTo="to-[#0F0A15]"
-                  />
-                </div>
+                {loading ? (
+                  <div className="p-4 font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D]">Loading projects...</div>
+                ) : (
+                  summary?.projects.map((project, idx) => (
+                    <div key={project.id} className="border-b md:border-b-0 md:border-r border-[#E0E0E0] dark:border-[#2D2D39]">
+                      <ProjectCard
+                        title={project.name}
+                        description={project.description}
+                        status="Active"
+                        users={project.membersCount}
+                        updatedText={`${project.runsCount} test runs`}
+                        gradientFrom={idx % 2 === 0 ? "from-[#0B1521]" : "from-[#1A1025]"}
+                        gradientTo={idx % 2 === 0 ? "to-[#070C12]" : "to-[#0F0A15]"}
+                      />
+                    </div>
+                  ))
+                )}
+                {summary?.projects.length === 0 && (
+                   <div className="p-4 font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D]">No projects found.</div>
+                )}
               </div>
             </section>
 
             {/* Test Suite Performance */}
             <section className="pt-2">
-              <PerformanceTable />
+              <PerformanceTable performance={summary?.performance || []} />
             </section>
           </div>
 
@@ -127,7 +140,7 @@ export const DashboardPage: React.FC = () => {
               <div className="bg-[#E8E8E8] dark:bg-[#2D2D39] px-4 py-3 border-b border-[#E0E0E0] dark:border-[#393939]">
                 <h2 className="font-mono font-bold text-[11px] text-[#161616] dark:text-white uppercase tracking-wider">Latest Activity</h2>
               </div>
-              <ActivityFeed />
+              <ActivityFeed activities={summary?.activities || []} />
             </section>
 
             <section>

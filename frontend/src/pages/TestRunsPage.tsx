@@ -180,14 +180,14 @@ const TestRunsPage = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-[#F4F4F4] dark:bg-[#121212] border-b border-[#E0E0E0] dark:border-[#393939]">
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Run ID / Name</th>
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Environment</th>
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Initiated By</th>
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider text-center">Progress</th>
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Created</th>
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Updated</th>
-                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider text-right">Actions</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Run ID / Name</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Environment</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Initiated By</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider text-center">Progress</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Created</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Updated</th>
+                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E0E0E0] dark:divide-[#393939]">

@@ -27,7 +27,6 @@ const SettingsPage = () => {
 
   // Preferences State
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
-  const [language, setLanguage] = useState(localStorage.getItem('language') || 'en');
   const [landingPage, setLandingPage] = useState(localStorage.getItem('landingPage') || '/projects');
   const [isPrefSaved, setIsPrefSaved] = useState(false);
 
@@ -84,9 +83,8 @@ const SettingsPage = () => {
   const handlePreferencesSave = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('theme', theme);
-    localStorage.setItem('language', language);
     localStorage.setItem('landingPage', landingPage);
-    
+
     // Apply theme (if system theme logic exists in index.html/App.tsx, it would pick this up)
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -121,16 +119,16 @@ const SettingsPage = () => {
           <div className="flex flex-col md:flex-row gap-8">
             {/* Sidebar Navigation */}
             <div className="w-full md:w-64 flex-shrink-0 space-y-1">
-              <button 
+              <button
                 onClick={() => setActiveTab('security')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-[4px] font-sans text-sm font-semibold transition-colors ${activeTab === 'security' ? 'bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white' : 'text-[#525252] dark:text-[#A8A8A8] hover:bg-[#F4F4F4] dark:hover:bg-[#2D2D39]'}`}
               >
                 <Shield size={18} />
                 <span>Security & Profile</span>
               </button>
-              
+
               {activeProject && (
-                <button 
+                <button
                   onClick={() => setActiveTab('admin')}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-[4px] font-sans text-sm font-semibold transition-colors ${activeTab === 'admin' ? 'bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white' : 'text-[#525252] dark:text-[#A8A8A8] hover:bg-[#F4F4F4] dark:hover:bg-[#2D2D39]'}`}
                 >
@@ -139,15 +137,15 @@ const SettingsPage = () => {
                 </button>
               )}
 
-              <button 
+              <button
                 onClick={() => setActiveTab('notifications')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-[4px] font-sans text-sm font-semibold transition-colors ${activeTab === 'notifications' ? 'bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white' : 'text-[#525252] dark:text-[#A8A8A8] hover:bg-[#F4F4F4] dark:hover:bg-[#2D2D39]'}`}
               >
                 <Bell size={18} />
                 <span>Notifications</span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setActiveTab('preferences')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-[4px] font-sans text-sm font-semibold transition-colors ${activeTab === 'preferences' ? 'bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white' : 'text-[#525252] dark:text-[#A8A8A8] hover:bg-[#F4F4F4] dark:hover:bg-[#2D2D39]'}`}
               >
@@ -158,14 +156,14 @@ const SettingsPage = () => {
 
             {/* Main Content Area */}
             <div className="flex-1 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-sm overflow-hidden">
-              
+
               {/* Security Tab */}
               {activeTab === 'security' && (
                 <div className="p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200">
                   <h2 className="font-sans font-bold text-xl text-[#161616] dark:text-white mb-6 flex items-center border-b border-[#E0E0E0] dark:border-[#393939] pb-4">
                     <Shield className="mr-3 text-[#0F62FE]" size={20} /> Security & Profile Management
                   </h2>
-                  
+
                   <div className="mb-8">
                     <h3 className="font-sans font-bold text-sm text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider mb-4">Change Password</h3>
                     <form onSubmit={handlePasswordChange} className="max-w-md space-y-4">
@@ -182,39 +180,39 @@ const SettingsPage = () => {
 
                       <div>
                         <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5">Current Password</label>
-                        <input 
-                          type="password" 
-                          required 
-                          value={oldPassword} 
-                          onChange={e => setOldPassword(e.target.value)} 
-                          className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]" 
+                        <input
+                          type="password"
+                          required
+                          value={oldPassword}
+                          onChange={e => setOldPassword(e.target.value)}
+                          className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5">New Password</label>
-                        <input 
-                          type="password" 
-                          required 
-                          value={newPassword} 
-                          onChange={e => setNewPassword(e.target.value)} 
-                          className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]" 
+                        <input
+                          type="password"
+                          required
+                          value={newPassword}
+                          onChange={e => setNewPassword(e.target.value)}
+                          className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5">Confirm New Password</label>
-                        <input 
-                          type="password" 
-                          required 
-                          value={confirmPassword} 
-                          onChange={e => setConfirmPassword(e.target.value)} 
-                          className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]" 
+                        <input
+                          type="password"
+                          required
+                          value={confirmPassword}
+                          onChange={e => setConfirmPassword(e.target.value)}
+                          className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
                         />
                       </div>
-                      
-                      <button 
-                        type="submit" 
+
+                      <button
+                        type="submit"
                         disabled={isSubmittingPassword}
                         className="mt-2 bg-[#0F62FE] hover:bg-[#0353E9] text-white font-sans font-semibold text-sm px-6 py-2.5 rounded-[4px] transition-colors shadow-sm flex items-center space-x-2 disabled:opacity-50"
                       >
@@ -235,38 +233,38 @@ const SettingsPage = () => {
                   <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8] mb-8">
                     High-precision controls for workspace security and access limits. Values represent critical configuration states for <span className="font-bold text-[#161616] dark:text-white">{activeProject.name}</span>.
                   </p>
-                  
+
                   <form onSubmit={handleAdminSave} className="space-y-8 max-w-2xl">
                     <div className="bg-[#F4F4F4] dark:bg-[#121212] p-5 rounded-[4px] border border-[#E0E0E0] dark:border-[#2D2D39]">
                       <h3 className="font-sans font-bold text-sm text-[#161616] dark:text-white mb-4 flex items-center">
                         <Shield size={16} className="mr-2 text-[#0F62FE]" /> Brute-Force Protection
                       </h3>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider mb-2">Max Failed Attempts</label>
                           <div className="flex items-center space-x-3">
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               min="1" max="10"
-                              value={joinCodeLimit} 
-                              onChange={e => setJoinCodeLimit(e.target.value)} 
-                              className="w-24 bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-sm text-[#0F62FE] font-bold focus:outline-none focus:border-[#0F62FE]" 
+                              value={joinCodeLimit}
+                              onChange={e => setJoinCodeLimit(e.target.value)}
+                              className="w-24 bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-sm text-[#0F62FE] font-bold focus:outline-none focus:border-[#0F62FE]"
                             />
                             <span className="font-sans text-sm text-[#525252] dark:text-[#8D8D8D]">attempts</span>
                           </div>
                           <p className="mt-2 text-xs text-[#757575] dark:text-[#8D8D8D] font-mono leading-tight">Threshold before automated lockout engages to prevent brute-force attacks on Join Codes.</p>
                         </div>
-                        
+
                         <div>
                           <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider mb-2">Lockout Duration</label>
                           <div className="flex items-center space-x-3">
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               min="1" max="72"
-                              value={lockoutPeriod} 
-                              onChange={e => setLockoutPeriod(e.target.value)} 
-                              className="w-24 bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-sm text-[#DA1E28] font-bold focus:outline-none focus:border-[#DA1E28]" 
+                              value={lockoutPeriod}
+                              onChange={e => setLockoutPeriod(e.target.value)}
+                              className="w-24 bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-sm text-[#DA1E28] font-bold focus:outline-none focus:border-[#DA1E28]"
                             />
                             <span className="font-sans text-sm text-[#525252] dark:text-[#8D8D8D]">hour(s)</span>
                           </div>
@@ -274,10 +272,10 @@ const SettingsPage = () => {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 border-t border-[#E0E0E0] dark:border-[#393939] pt-6">
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         className="bg-[#161616] dark:bg-white text-white dark:text-[#161616] font-sans font-semibold text-sm px-6 py-2.5 rounded-[4px] transition-colors shadow-sm flex items-center space-x-2"
                       >
                         <Save size={16} />
@@ -295,7 +293,7 @@ const SettingsPage = () => {
                   <h2 className="font-sans font-bold text-xl text-[#161616] dark:text-white mb-6 flex items-center border-b border-[#E0E0E0] dark:border-[#393939] pb-4">
                     <Bell className="mr-3 text-[#F1C21B]" size={20} /> Notifications
                   </h2>
-                  
+
                   <div className="flex flex-col items-center justify-center text-center py-16 px-4 border-2 border-dashed border-[#E0E0E0] dark:border-[#393939] rounded-[8px] bg-[#F4F4F4]/50 dark:bg-[#121212]/50">
                     <div className="w-16 h-16 bg-white dark:bg-[#1C1C21] rounded-full flex items-center justify-center mb-6 shadow-sm border border-[#E0E0E0] dark:border-[#2D2D39]">
                       <Globe size={32} className="text-[#A8A8A8]" />
@@ -319,13 +317,13 @@ const SettingsPage = () => {
                   <h2 className="font-sans font-bold text-xl text-[#161616] dark:text-white mb-6 flex items-center border-b border-[#E0E0E0] dark:border-[#393939] pb-4">
                     <Monitor className="mr-3 text-[#0F62FE]" size={20} /> Workspace Preferences
                   </h2>
-                  
+
                   <form onSubmit={handlePreferencesSave} className="max-w-xl space-y-6">
                     <div>
                       <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5 flex items-center">
                         <Palette size={16} className="mr-2 text-[#525252] dark:text-[#A8A8A8]" /> Interface Theme
                       </label>
-                      <select 
+                      <select
                         value={theme}
                         onChange={e => setTheme(e.target.value)}
                         className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
@@ -335,26 +333,12 @@ const SettingsPage = () => {
                         <option value="dark">Dark Mode (Obsidian Control)</option>
                       </select>
                     </div>
-                    
-                    <div>
-                      <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5 flex items-center">
-                        <Globe size={16} className="mr-2 text-[#525252] dark:text-[#A8A8A8]" /> System Language
-                      </label>
-                      <select 
-                        value={language}
-                        onChange={e => setLanguage(e.target.value)}
-                        className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
-                      >
-                        <option value="en">English (US)</option>
-                        <option value="id">Bahasa Indonesia</option>
-                      </select>
-                    </div>
 
                     <div>
                       <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5 flex items-center">
                         <Monitor size={16} className="mr-2 text-[#525252] dark:text-[#A8A8A8]" /> Default Landing Page
                       </label>
-                      <select 
+                      <select
                         value={landingPage}
                         onChange={e => setLandingPage(e.target.value)}
                         className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
@@ -364,10 +348,10 @@ const SettingsPage = () => {
                         <option value="/runs">Test Runs (Active Cycles)</option>
                       </select>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 border-t border-[#E0E0E0] dark:border-[#393939] pt-6">
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         className="bg-[#0F62FE] hover:bg-[#0353E9] text-white font-sans font-semibold text-sm px-6 py-2.5 rounded-[4px] transition-colors shadow-sm flex items-center space-x-2"
                       >
                         <Save size={16} />
