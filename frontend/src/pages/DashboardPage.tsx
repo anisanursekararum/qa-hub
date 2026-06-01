@@ -34,7 +34,7 @@ export const DashboardPage: React.FC = () => {
   return (
     <DashboardLayout user={user} onLogout={handleLogout} currentPath="/dashboard">
       <div className="p-6 sm:p-8 max-w-7xl mx-auto">
-        
+
         {/* Header Section */}
         <div className="mb-8">
           <h1 className="font-sans font-black text-3xl text-[#161616] dark:text-white tracking-tight mb-2">
@@ -47,53 +47,50 @@ export const DashboardPage: React.FC = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
-           <StatCard 
-             title="Active Runs" 
-             value="14" 
-             subtitle={<span className="text-[#0F62FE] font-bold">+2 from last hour</span>}
-             icon={<Activity size={14} />}
-             borderColor="bg-[#0F62FE]"
-           />
-           <StatCard 
-             title="AI Efficiency" 
-             value="94.2%" 
-             subtitle={<span className="text-[#161616] dark:text-[#E0E0E0] font-semibold">Machine intelligence optimized</span>}
-             icon={<Zap size={14} className="text-[#8A3FFC]" />}
-           />
-           <StatCard 
-             title="Open Defects" 
-             value="28" 
-             subtitle={<span className="text-[#DA1E28] font-bold">! 4 Critical priority</span>}
-             icon={<Bug size={14} className="text-[#DA1E28]" />}
-           />
-           <StatCard 
-             title="Test Coverage" 
-             value="88%" 
-             subtitle={
-               <div className="w-full bg-[#E0E0E0] dark:bg-[#393939] h-1.5 mt-2 rounded-full overflow-hidden">
-                 <div className="bg-[#0F62FE] h-full" style={{ width: '88%' }}></div>
-               </div>
-             }
-             icon={<CheckSquare size={14} />}
-           />
+          <StatCard
+            title="Active Runs"
+            value="14"
+            subtitle={<span className="text-[#0F62FE] font-bold">+2 from last hour</span>}
+            icon={<Activity size={14} />}
+            borderColor="bg-[#0F62FE]"
+          />
+          <StatCard
+            title="AI Efficiency"
+            value="94.2%"
+            subtitle={<span className="text-[#161616] dark:text-[#E0E0E0] font-semibold">Machine intelligence optimized</span>}
+            icon={<Zap size={14} className="text-[#8A3FFC]" />}
+          />
+          <StatCard
+            title="Open Defects"
+            value="28"
+            subtitle={<span className="text-[#DA1E28] font-bold">! 4 Critical priority</span>}
+            icon={<Bug size={14} className="text-[#DA1E28]" />}
+          />
+          <StatCard
+            title="Test Coverage"
+            value="88%"
+            subtitle={
+              <div className="w-full bg-[#E0E0E0] dark:bg-[#393939] h-1.5 mt-2 rounded-full overflow-hidden">
+                <div className="bg-[#0F62FE] h-full" style={{ width: '88%' }}></div>
+              </div>
+            }
+            icon={<CheckSquare size={14} />}
+          />
         </div>
 
         {/* Main Content Split */}
         <div className="flex flex-col xl:flex-row gap-6">
-          
+
           {/* Left Column */}
           <div className="flex-1 min-w-0 flex flex-col space-y-6">
             {/* My Projects */}
             <section>
               <div className="bg-[#F4F4F4] dark:bg-[#1C1C21] px-4 py-3 flex justify-between items-center rounded-t-[4px] border-b border-[#E0E0E0] dark:border-[#2D2D39]">
                 <h2 className="font-mono font-bold text-[11px] text-[#161616] dark:text-white uppercase tracking-wider">My Projects</h2>
-                <button className="bg-[#0F62FE] hover:bg-[#0353E9] text-white font-sans font-semibold text-[10px] px-3 py-1.5 rounded-[4px] transition-colors shadow-sm flex items-center space-x-1">
-                  <span>+ New Project</span>
-                </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-t-0 border-[#E0E0E0] dark:border-[#2D2D39] rounded-b-[4px] overflow-hidden bg-white dark:bg-[#121212]">
                 <div className="border-b md:border-b-0 md:border-r border-[#E0E0E0] dark:border-[#2D2D39]">
-                  <ProjectCard 
+                  <ProjectCard
                     title="Enterprise API v4"
                     description="Scaling internal endpoints for global transaction reconciliation and audit trails."
                     status="Active"
@@ -104,7 +101,7 @@ export const DashboardPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <ProjectCard 
+                  <ProjectCard
                     title="Smart Checkout UI"
                     description="Applying generative testing to edge cases in the mobile payment gateway integration."
                     status="Active"
@@ -132,7 +129,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <ActivityFeed />
             </section>
-            
+
             <section>
               <AiInsightsCard />
             </section>

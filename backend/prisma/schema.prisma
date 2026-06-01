@@ -23,6 +23,8 @@ enum CaseStatus {
   DRAFT
   /// Test cases transition to READY once verified by a human, making them eligible for curation.
   READY
+  /// Test case is no longer relevant to the current product features.
+  DEPRECATED
 }
 
 /// Represents the operational state of a Test Run.
@@ -76,10 +78,27 @@ model Project {
   members     ProjectMember[]
   /// Invitations sent out to invite new members to this project.
   invitations ProjectInvitation[]
+  /// Custom functional modules defined within this project.
+  modules     ProjectModule[]
   /// Test cases stored within this project's repository.
   testCases   TestCase[]
   /// Test runs scheduled or executed within this project.
   testRuns    TestRun[]
+}
+
+/// Tracks the custom functional modules within a project (e.g. AUTH).
+model ProjectModule {
+  id              String     @id @default(uuid())
+  projectId       String
+  project         Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  code            String
+  /// Current counter for generating sequential IDs like TC-AUTH-001
+  currentSequence Int        @default(0)
+  
+  testCases       TestCase[]
+
+  @@unique([projectId, code])
 }
 
 /// Junction table facilitating many-to-many relationship between Users and Projects.
@@ -118,9 +137,23 @@ model TestCase {
   id             String          @id @default(uuid())
   projectId      String
   project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  /// The auto-generated public ID (e.g., TC-AUTH-001)
+  publicId       String?
+  
   title          String
+  
+  /// The functional module or category this test case belongs to.
+  moduleId       String?
+  module         ProjectModule?  @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  
+  prerequisite   String?
+  
   /// JSON payload representing sequential test steps or parameters.
   steps          Json
+  
+  expectedResult String?
+  
   /// Indicator of whether this test case has a matching automation script.
   hasAutomation  Boolean         @default(false)
   status         CaseStatus      @default(DRAFT)

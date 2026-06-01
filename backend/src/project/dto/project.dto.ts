@@ -7,6 +7,18 @@ export class JoinProjectDto {
   joinCode!: string;
 }
 
+export class CreateProjectDto {
+  @IsNotEmpty()
+  @IsString()
+  name!: string;
+}
+
+export class GenerateJoinCodeDto {
+  @IsNotEmpty()
+  @IsString()
+  email!: string;
+}
+
 export interface JoinProjectResponse {
   message: string;
   projectId: string;

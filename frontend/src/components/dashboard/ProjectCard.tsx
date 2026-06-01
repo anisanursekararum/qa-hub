@@ -39,18 +39,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ title, description, st
       
       {/* Content */}
       <div className="p-4 flex-1 flex flex-col bg-white dark:bg-[#1C1C21]">
-        <h3 className="font-sans font-bold text-sm text-[#161616] dark:text-white mb-1.5">{title}</h3>
-        <p className="font-sans text-[11px] text-[#525252] dark:text-[#A8A8A8] flex-1 leading-relaxed">{description}</p>
+        <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white mb-2">{title}</h3>
+        <p className="font-sans text-xs sm:text-sm text-[#525252] dark:text-[#A8A8A8] flex-1 leading-relaxed">{description}</p>
         
         <div className="mt-4 flex justify-between items-center border-t border-[#E0E0E0] dark:border-[#2D2D39] pt-3">
            <div className="flex items-center -space-x-1.5">
-             <div className="w-5 h-5 rounded-full bg-gray-300 border-2 border-white dark:border-[#1C1C21]"></div>
-             <div className="w-5 h-5 rounded-full bg-gray-400 border-2 border-white dark:border-[#1C1C21]"></div>
-             <div className="w-5 h-5 rounded-full bg-[#F4F4F4] dark:bg-[#2D2D39] border-2 border-white dark:border-[#1C1C21] flex items-center justify-center">
-               <span className="font-mono text-[7px] font-bold text-[#525252] dark:text-[#A8A8A8]">+{users}</span>
+             <div className="w-6 h-6 rounded-full bg-gray-300 border-2 border-white dark:border-[#1C1C21]"></div>
+             <div className="w-6 h-6 rounded-full bg-gray-400 border-2 border-white dark:border-[#1C1C21]"></div>
+             <div className="w-6 h-6 rounded-full bg-[#F4F4F4] dark:bg-[#2D2D39] border-2 border-white dark:border-[#1C1C21] flex items-center justify-center">
+               <span className="font-mono text-[9px] font-bold text-[#525252] dark:text-[#A8A8A8]">+{users}</span>
              </div>
            </div>
-           <span className="font-mono text-[9px] text-[#757575] dark:text-[#8D8D8D]">{updatedText}</span>
+           <span className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D]">{updatedText}</span>
         </div>
       </div>
     </div>

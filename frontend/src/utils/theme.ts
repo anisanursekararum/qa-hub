@@ -13,9 +13,8 @@ export function initializeTheme(): void {
   if (typeof window === 'undefined') return;
 
   const savedTheme = localStorage.getItem(THEME_KEY);
-  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-  if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+  if (savedTheme === 'dark') {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');

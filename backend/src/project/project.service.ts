@@ -6,8 +6,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { JoinProjectDto, JoinProjectResponse } from './dto/project.dto';
+import { JoinProjectDto, JoinProjectResponse, CreateProjectDto, GenerateJoinCodeDto } from './dto/project.dto';
 import { Role, ProjectMember } from '@prisma/client';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ProjectService {
@@ -167,5 +168,104 @@ export class ProjectService {
       projectName: result.project.name,
       role: result.role,
     };
+  }
+
+  async getUserProjects(userId: string) {
+    const memberships = await this.prisma.projectMember.findMany({
+      where: { userId },
+      include: {
+        project: {
+          include: {
+            members: true,
+          }
+        },
+      },
+      orderBy: { project: { createdAt: 'desc' } }
+    });
+
+    return memberships.map(m => ({
+      id: m.project.id,
+      name: m.project.name,
+      description: 'A secure workspace for quality assurance testing and test case management.',
+      role: m.role,
+      teamSize: m.project.members.length,
+    }));
+  }
+
+  async createProject(userId: string, dto: CreateProjectDto) {
+    const project = await this.prisma.project.create({
+      data: {
+        name: dto.name,
+        members: {
+          create: {
+            userId,
+            role: Role.ADMIN_PROJECT,
+          }
+        }
+      },
+      include: {
+        members: true,
+      }
+    });
+
+    return {
+      id: project.id,
+      name: project.name,
+      description: 'A secure workspace for quality assurance testing and test case management.',
+      role: Role.ADMIN_PROJECT,
+      teamSize: 1,
+    };
+  }
+
+  async getProjectMembers(projectId: string, userId: string) {
+    const member = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } }
+    });
+    if (!member) throw new ForbiddenException('You do not have access to this project.');
+
+    const members = await this.prisma.projectMember.findMany({
+      where: { projectId },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true }
+        }
+      },
+      orderBy: { user: { name: 'asc' } }
+    });
+
+    return members.map(m => ({
+      id: m.user.id,
+      name: m.user.name,
+      email: m.user.email,
+      role: m.role,
+    }));
+  }
+
+  async generateJoinCode(projectId: string, adminId: string, dto: GenerateJoinCodeDto) {
+    const admin = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: adminId } }
+    });
+    if (!admin || admin.role !== Role.ADMIN_PROJECT) {
+      throw new ForbiddenException('Only project admins can generate join codes.');
+    }
+
+    let code = '';
+    let isUnique = false;
+    while (!isUnique) {
+      code = crypto.randomBytes(3).toString('hex').toUpperCase();
+      const existing = await this.prisma.projectInvitation.findUnique({ where: { joinCode: code } });
+      if (!existing) isUnique = true;
+    }
+
+    const invitation = await this.prisma.projectInvitation.create({
+      data: {
+        projectId,
+        email: dto.email,
+        joinCode: code,
+        expiredAt: new Date(Date.now() + 3 * 60 * 60 * 1000), // 3 hours
+      }
+    });
+
+    return invitation;
   }
 }
