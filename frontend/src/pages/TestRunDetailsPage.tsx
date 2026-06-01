@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlayCircle, CheckCircle2, CircleDashed, Clock, ChevronLeft, Terminal, Bot, Settings2, FileText, CheckSquare, XSquare, Loader2, ArrowRight, Plus, Search, Filter, X } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Clock, ChevronLeft, Terminal, Bot, Settings2, FileText, XSquare, Loader2, Plus, Search, Filter, X } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useProject } from '../context/ProjectContext';
 import { testRunsApi, TestRun } from '../api/testruns';
@@ -26,6 +26,12 @@ const TestRunDetailsPage = () => {
   
   // UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  
+  // Title editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [modalSearchQuery, setModalSearchQuery] = useState('');
   const [modalFilters, setModalFilters] = useState<FilterCondition[]>([]);
@@ -127,6 +133,22 @@ const TestRunDetailsPage = () => {
     try {
       await testRunsApi.updateStatus(runId!, newStatus);
       setRun(prev => prev ? { ...prev, status: newStatus } : null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEditNameSubmit = async () => {
+    if (!run || !editedName.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+    try {
+      const prefix = run.name.split(' - ')[0];
+      const newFullName = `${prefix} - ${editedName}`;
+      await testRunsApi.updateName(run.id, newFullName);
+      setRun(prev => prev ? { ...prev, name: newFullName } : null);
+      setIsEditingName(false);
     } catch (err) {
       console.error(err);
     }
@@ -270,14 +292,45 @@ const TestRunDetailsPage = () => {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
           {/* Header & Breadcrumbs */}
           <div className="mb-6">
-            <button onClick={() => navigate('/runs')} className="flex items-center text-[#0F62FE] hover:underline font-sans text-xs font-semibold mb-3">
+            <button onClick={() => navigate('/runs')} className="flex items-center text-[#0F62FE] hover:underline font-sans text-sm font-semibold mb-3">
               <ChevronLeft size={16} className="mr-1" /> Back to Runs
             </button>
             <div className="flex justify-between items-end">
-              <div>
-                <h1 className="text-3xl font-sans font-black tracking-tight text-[#161616] dark:text-white mb-2">{run.name}</h1>
+              <div className="flex-1 mr-4">
+                {isEditingName ? (
+                  <div className="flex items-center mb-2">
+                    <span className="text-3xl font-sans font-black tracking-tight text-[#757575] dark:text-[#A8A8A8] mr-2">
+                      {run.name.split(' - ')[0]} -
+                    </span>
+                    <input 
+                      autoFocus
+                      type="text"
+                      className="text-3xl font-sans font-black tracking-tight text-[#161616] dark:text-white bg-transparent border-b-2 border-[#0F62FE] outline-none flex-1 min-w-[300px]"
+                      value={editedName}
+                      onChange={e => setEditedName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleEditNameSubmit();
+                        if (e.key === 'Escape') setIsEditingName(false);
+                      }}
+                      onBlur={handleEditNameSubmit}
+                    />
+                  </div>
+                ) : (
+                  <h1 
+                    className={`text-3xl font-sans font-black tracking-tight text-[#161616] dark:text-white mb-2 w-fit ${run.status === 'DRAFT' ? 'cursor-pointer hover:text-[#0F62FE] transition-colors border-b-2 border-transparent hover:border-dashed hover:border-[#0F62FE]' : ''}`}
+                    onClick={() => {
+                      if (run.status === 'DRAFT') {
+                        setEditedName(run.name.split(' - ').slice(1).join(' - '));
+                        setIsEditingName(true);
+                      }
+                    }}
+                    title={run.status === 'DRAFT' ? "Click to edit name" : ""}
+                  >
+                    {run.name}
+                  </h1>
+                )}
                 <div className="flex items-center space-x-3">
-                  <span className="font-mono text-xs bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white px-2 py-1 rounded-[2px]">{run.id.split('-').slice(0,3).join('-')}</span>
+                  <span className="font-mono text-sm bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white px-2 py-1 rounded-[2px]">{run.id.split('-').slice(0,3).join('-')}</span>
                   <span className="text-[#525252] dark:text-[#A8A8A8] text-sm">Created {new Date(run.createdAt).toLocaleString()}</span>
                 </div>
               </div>
@@ -316,31 +369,31 @@ const TestRunDetailsPage = () => {
           {/* Run Insights */}
           <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] p-4 mb-6 flex flex-wrap gap-8 items-center shadow-sm">
             <div>
-              <div className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Started</div>
+              <div className="text-xs font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Started</div>
               <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white">
                 {run.startedAt ? new Date(run.startedAt).toLocaleString('en-GB') : '-'}
               </div>
             </div>
             <div className="w-px h-8 bg-[#E0E0E0] dark:bg-[#393939]"></div>
             <div>
-              <div className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Duration</div>
+              <div className="text-xs font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Duration</div>
               <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white">
                 {run.startedAt ? (run.endedAt ? 'Finished' : 'Ongoing') : '-'}
               </div>
             </div>
             <div className="w-px h-8 bg-[#E0E0E0] dark:bg-[#393939]"></div>
             <div>
-              <div className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Environment</div>
+              <div className="text-xs font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Environment</div>
               <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white">
                 {run.environment || '-'}
               </div>
             </div>
             <div className="w-px h-8 bg-[#E0E0E0] dark:bg-[#393939]"></div>
             <div>
-              <div className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Initiated By</div>
+              <div className="text-xs font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Initiated By</div>
               <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white flex items-center space-x-2">
                 <span>{run.initiatedBy?.name || 'System'}</span>
-                <span className="font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D] bg-[#F4F4F4] dark:bg-[#121212] px-1.5 py-0.5 rounded-[2px]">{run.initiatedBy?.email || 'auto'}</span>
+                <span className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D] bg-[#F4F4F4] dark:bg-[#121212] px-1.5 py-0.5 rounded-[2px]">{run.initiatedBy?.email || 'auto'}</span>
               </div>
             </div>
           </div>
@@ -348,7 +401,7 @@ const TestRunDetailsPage = () => {
           {/* Performance Metrics Header */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] hover:border-[#0F62FE] dark:hover:border-[#0F62FE] transition-colors rounded-[4px] p-4 text-[#161616] dark:text-white shadow-sm">
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs font-semibold uppercase tracking-wider mb-1">Overall Progress</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm font-semibold uppercase tracking-wider mb-1">Overall Progress</div>
               <div className="flex items-end justify-between">
                 <div className="text-3xl font-mono font-bold">{progressPercent}%</div>
                 <div className="text-[#0F62FE]"><CircleDashed size={24} /></div>
@@ -358,36 +411,36 @@ const TestRunDetailsPage = () => {
               </div>
             </div>
             <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] hover:border-[#24A148] dark:hover:border-[#24A148] transition-colors rounded-[4px] p-4 text-[#161616] dark:text-white shadow-sm">
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs font-semibold uppercase tracking-wider mb-1">Passed Cases</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm font-semibold uppercase tracking-wider mb-1">Passed Cases</div>
               <div className="flex items-end justify-between">
                 <div className="text-3xl font-mono font-bold text-[#24A148]">{passedItems}</div>
                 <div className="text-[#24A148]"><CheckCircle2 size={24} /></div>
               </div>
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs mt-3 font-mono">Successfully executed</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm mt-3 font-mono">Successfully executed</div>
             </div>
             <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] hover:border-[#DA1E28] dark:hover:border-[#DA1E28] transition-colors rounded-[4px] p-4 text-[#161616] dark:text-white shadow-sm">
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs font-semibold uppercase tracking-wider mb-1">Failed Cases</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm font-semibold uppercase tracking-wider mb-1">Failed Cases</div>
               <div className="flex items-end justify-between">
                 <div className="text-3xl font-mono font-bold text-[#DA1E28]">{failedItems}</div>
                 <div className="text-[#DA1E28]"><XSquare size={24} /></div>
               </div>
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs mt-3 font-mono">Execution failed</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm mt-3 font-mono">Execution failed</div>
             </div>
             <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] hover:border-[#F1C21B] dark:hover:border-[#F1C21B] transition-colors rounded-[4px] p-4 text-[#161616] dark:text-white shadow-sm">
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs font-semibold uppercase tracking-wider mb-1">TODO Cases</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm font-semibold uppercase tracking-wider mb-1">TODO Cases</div>
               <div className="flex items-end justify-between">
                 <div className="text-3xl font-mono font-bold text-[#F1C21B]">{todoItems}</div>
                 <div className="text-[#F1C21B]"><Clock size={24} /></div>
               </div>
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs mt-3 font-mono">Pending execution</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm mt-3 font-mono">Pending execution</div>
             </div>
             <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] hover:border-[#0F62FE] dark:hover:border-[#0F62FE] transition-colors rounded-[4px] p-4 text-[#161616] dark:text-white shadow-sm">
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs font-semibold uppercase tracking-wider mb-1">Total Scopes</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm font-semibold uppercase tracking-wider mb-1">Total Scopes</div>
               <div className="flex items-end justify-between">
                 <div className="text-3xl font-mono font-bold">{totalItems}</div>
                 <div className="text-[#0F62FE]"><FileText size={24} /></div>
               </div>
-              <div className="text-[#525252] dark:text-[#A8A8A8] text-xs mt-3 font-mono">{totalItems} test cases from {modulesCount} modules</div>
+              <div className="text-[#525252] dark:text-[#A8A8A8] text-sm mt-3 font-mono">{totalItems} test cases from {modulesCount} modules</div>
             </div>
           </div>
 
@@ -398,17 +451,17 @@ const TestRunDetailsPage = () => {
                 <Settings2 size={16} className="mr-2 text-[#0F62FE]" /> Execution Engine
               </h2>
               {run.status === 'DRAFT' && (
-                <button onClick={() => setIsAddModalOpen(true)} className="text-xs font-semibold text-[#0F62FE] hover:underline flex items-center">
+                <button onClick={() => setIsAddModalOpen(true)} className="text-sm font-semibold text-[#0F62FE] hover:underline flex items-center">
                   <Plus size={14} className="mr-1" /> Add Cases to Scope
                 </button>
               )}
               {run.status === 'IN_PROGRESS' && (
-                <span className="text-xs font-mono font-bold text-[#0F62FE] bg-[#0F62FE]/10 px-2 py-1 rounded-[2px] flex items-center">
+                <span className="text-sm font-mono font-bold text-[#0F62FE] bg-[#0F62FE]/10 px-2 py-1 rounded-[2px] flex items-center">
                   <CircleDashed size={12} className="mr-1 animate-spin-slow" /> ACTIVE WORKSPACE
                 </span>
               )}
               {run.status === 'AUTOMATION_RUNNING' && (
-                <span className="text-xs font-mono font-bold text-[#8A3FFC] bg-[#8A3FFC]/10 px-2 py-1 rounded-[2px] flex items-center animate-pulse">
+                <span className="text-sm font-mono font-bold text-[#8A3FFC] bg-[#8A3FFC]/10 px-2 py-1 rounded-[2px] flex items-center animate-pulse">
                   <Bot size={12} className="mr-1" /> LOCK: ROBOTS WORKING
                 </span>
               )}
@@ -456,7 +509,7 @@ const TestRunDetailsPage = () => {
                 <div className="flex flex-wrap gap-2 mt-3">
                   {tableFilters.map(f => (
                     <div key={f.id} className="flex items-center bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-2 py-1">
-                      <span className="text-xs text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any)=>o.v===f.value)?.l || f.value : f.value}</span>
+                      <span className="text-sm text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any)=>o.v===f.value)?.l || f.value : f.value}</span>
                       <button onClick={() => setTableFilters(tableFilters.filter(ff => ff.id !== f.id))} className="text-[#A8A8A8] hover:text-[#DA1E28]"><X size={14} /></button>
                     </div>
                   ))}
@@ -468,11 +521,11 @@ const TestRunDetailsPage = () => {
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-[#F4F4F4] dark:bg-[#121212] z-10 shadow-sm">
                   <tr className="border-b border-[#E0E0E0] dark:border-[#393939]">
-                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">ID / Title</th>
-                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Type</th>
-                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Notes (Failure Logs)</th>
-                    <th className="px-4 py-3 font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider text-right">Actions</th>
+                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">ID / Title</th>
+                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Type</th>
+                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">Notes (Failure Logs)</th>
+                    <th className="px-4 py-3 font-sans text-sm font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E0E0E0] dark:divide-[#393939]">
@@ -487,7 +540,7 @@ const TestRunDetailsPage = () => {
                       <React.Fragment key={moduleName}>
                         <tr className="bg-[#F7F7F7] dark:bg-[#161616]">
                           <td colSpan={5} className="px-4 py-2 border-b border-[#E0E0E0] dark:border-[#393939]">
-                            <span className="font-sans font-bold text-xs text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">
+                            <span className="font-sans font-bold text-sm text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider">
                               {moduleName} ({runItemsByModule[moduleName].length})
                             </span>
                           </td>
@@ -495,20 +548,20 @@ const TestRunDetailsPage = () => {
                         {runItemsByModule[moduleName].map(item => (
                           <tr key={item.testCaseId} className={`hover:bg-[#F4F4F4] dark:hover:bg-[#2D2D39]/30 transition-colors ${item.executionStatus === 'FAILED' ? 'bg-[#DA1E28]/5 dark:bg-[#DA1E28]/10' : ''}`}>
                             <td className="px-4 py-3">
-                              <div className="font-mono text-xs font-bold text-[#0F62FE] mb-0.5">{item.publicId}</div>
+                              <div className="font-mono text-sm font-bold text-[#0F62FE] mb-0.5">{item.publicId}</div>
                               <div className="font-sans text-sm text-[#161616] dark:text-white line-clamp-1">{item.title}</div>
                             </td>
                             <td className="px-4 py-3">
                               {item.hasAutomation ? 
-                                <span className="font-mono text-[10px] text-[#8A3FFC] border border-[#8A3FFC]/30 px-1.5 py-0.5 rounded-[2px] font-bold flex items-center w-max"><Bot size={10} className="mr-1"/>AUTO</span> : 
-                                <span className="font-mono text-[10px] text-[#525252] border border-[#525252]/50 px-1.5 py-0.5 rounded-[2px] font-bold">MANUAL</span>}
+                                <span className="font-mono text-xs text-[#8A3FFC] border border-[#8A3FFC]/30 px-1.5 py-0.5 rounded-[2px] font-bold flex items-center w-max"><Bot size={10} className="mr-1"/>AUTO</span> : 
+                                <span className="font-mono text-xs text-[#525252] border border-[#525252]/50 px-1.5 py-0.5 rounded-[2px] font-bold">MANUAL</span>}
                             </td>
                             <td className="px-4 py-3">
                               <select 
                                 value={item.executionStatus}
                                 disabled={run.status !== 'IN_PROGRESS'}
                                 onChange={(e) => handleItemExecutionUpdate(item.testCaseId, e.target.value)}
-                                className={`font-sans text-xs font-bold px-2 py-1 rounded-[2px] border focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed ${
+                                className={`font-sans text-sm font-bold px-2 py-1 rounded-[2px] border focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed ${
                                   item.executionStatus === 'TO_DO' ? 'bg-[#F4F4F4] dark:bg-[#393939] border-[#CCCCCC] dark:border-[#525252] text-[#525252] dark:text-[#A8A8A8]' :
                                   item.executionStatus === 'PASSED' ? 'bg-[#24A148]/10 border-[#24A148]/30 text-[#24A148]' :
                                   'bg-[#DA1E28]/10 border-[#DA1E28]/30 text-[#DA1E28]'
@@ -519,7 +572,7 @@ const TestRunDetailsPage = () => {
                                 <option value="FAILED">FAILED</option>
                               </select>
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs text-[#525252] dark:text-[#A8A8A8]">
+                            <td className="px-4 py-3 font-mono text-sm text-[#525252] dark:text-[#A8A8A8]">
                               {item.notes ? (
                                 <div className="max-w-xs truncate" title={item.notes}>{item.notes}</div>
                               ) : (
@@ -528,7 +581,7 @@ const TestRunDetailsPage = () => {
                             </td>
                             <td className="px-4 py-3 text-right">
                               {run.status === 'DRAFT' && (
-                                <button onClick={() => handleRemoveItem(item.testCaseId)} className="text-[#DA1E28] hover:underline font-sans text-xs font-semibold">
+                                <button onClick={() => handleRemoveItem(item.testCaseId)} className="text-[#DA1E28] hover:underline font-sans text-sm font-semibold">
                                   Remove
                                 </button>
                               )}
@@ -547,7 +600,7 @@ const TestRunDetailsPage = () => {
           {(run.status === 'AUTOMATION_RUNNING' || logs.length > 0) && (
             <div className="bg-[#161616] border border-[#393939] rounded-[4px] shadow-sm mb-6 flex flex-col">
               <div className="p-3 border-b border-[#393939] bg-[#000000] flex justify-between items-center">
-                <h2 className="font-mono font-bold text-xs text-[#0F62FE] flex items-center">
+                <h2 className="font-mono font-bold text-sm text-[#0F62FE] flex items-center">
                   <Terminal size={14} className="mr-2" /> 
                   TELEMETRY STREAM // {run.id}
                 </h2>
@@ -557,7 +610,7 @@ const TestRunDetailsPage = () => {
                   <div className="w-2 h-2 rounded-full bg-[#24A148]"></div>
                 </div>
               </div>
-              <div className="p-4 h-64 overflow-y-auto font-mono text-xs text-[#A8A8A8] space-y-1 bg-[#121212]">
+              <div className="p-4 h-64 overflow-y-auto font-mono text-sm text-[#A8A8A8] space-y-1 bg-[#121212]">
                 {logs.map((l, i) => (
                   <div key={i} className="flex space-x-3">
                     <span className="text-[#525252] shrink-0">[{new Date(l.timestamp).toLocaleTimeString()}]</span>
@@ -626,7 +679,7 @@ const TestRunDetailsPage = () => {
                     <div className="flex flex-wrap gap-2 mt-3">
                       {modalFilters.map(f => (
                         <div key={f.id} className="flex items-center bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-2 py-1">
-                          <span className="text-xs text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any)=>o.v===f.value)?.l || f.value : f.value}</span>
+                          <span className="text-sm text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any)=>o.v===f.value)?.l || f.value : f.value}</span>
                           <button onClick={() => setModalFilters(modalFilters.filter(ff => ff.id !== f.id))} className="text-[#A8A8A8] hover:text-[#DA1E28]"><X size={14} /></button>
                         </div>
                       ))}
@@ -643,7 +696,7 @@ const TestRunDetailsPage = () => {
                     ) : (
                       Object.keys(casesByModule).map(moduleName => (
                         <div key={moduleName} className="space-y-2">
-                          <h4 className="font-sans font-bold text-xs text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider sticky top-0 bg-[#F4F4F4] dark:bg-[#121212] py-1 z-10">
+                          <h4 className="font-sans font-bold text-sm text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider sticky top-0 bg-[#F4F4F4] dark:bg-[#121212] py-1 z-10">
                             {moduleName} ({casesByModule[moduleName].length})
                           </h4>
                           {casesByModule[moduleName].map(tc => (
@@ -656,7 +709,7 @@ const TestRunDetailsPage = () => {
                               <input type="checkbox" checked={selectedToAdd.has(tc.id)} readOnly className="w-4 h-4 rounded text-[#0F62FE] bg-[#F4F4F4] dark:bg-[#1C1C21]" />
                               <div className="flex-1">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="font-mono text-xs font-bold text-[#0F62FE]">{tc.publicId}</span>
+                                  <span className="font-mono text-sm font-bold text-[#0F62FE]">{tc.publicId}</span>
                                   {tc.hasAutomation && <Bot size={12} className="text-[#8A3FFC]" />}
                                 </div>
                                 <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white line-clamp-1">{tc.title}</div>

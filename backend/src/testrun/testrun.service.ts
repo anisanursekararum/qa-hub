@@ -87,6 +87,13 @@ export class TestrunService {
     return run;
   }
 
+  async updateName(id: string, name: string) {
+    return this.prisma.testRun.update({
+      where: { id },
+      data: { name }
+    });
+  }
+
   async duplicate(projectId: string, dto: DuplicateTestRunDto, userId: string) {
     const sourceRun = await this.prisma.testRun.findUnique({
       where: { id: dto.sourceRunId },

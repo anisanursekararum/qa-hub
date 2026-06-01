@@ -8,7 +8,7 @@ interface StatCardProps {
   borderColor?: string; 
 }
 
-export const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, borderColor }) => {
+export const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, borderColor }) => {
   return (
     <div className="relative bg-[#F7F7F7] dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] p-5 overflow-hidden flex flex-col justify-between min-h-[110px] transition-colors duration-200">
       {borderColor && <div className={`absolute top-0 left-0 w-1 h-full ${borderColor}`}></div>}

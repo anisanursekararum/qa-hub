@@ -23,6 +23,7 @@ export interface TestRun {
   startedAt?: string;
   endedAt?: string;
   environment?: string;
+  updatedAt?: string;
   initiatedBy?: { name: string; email: string };
   items?: TestRunItem[];
   _count?: { items: number };
@@ -34,9 +35,18 @@ export const testRunsApi = {
     if (!res.ok) throw new Error('Failed to fetch test runs');
     return res.json();
   },
-  findOne: async (id: string) => {
+  findOne: async (id: string): Promise<TestRun> => {
     const res = await fetch(`${API_URL}/testrun/${id}`, { headers: getHeaders() });
     if (!res.ok) throw new Error('Failed to fetch test run');
+    return res.json();
+  },
+  updateName: async (id: string, name: string): Promise<TestRun> => {
+    const res = await fetch(`${API_URL}/testrun/${id}/name`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ name })
+    });
+    if (!res.ok) throw new Error('Failed to update run name');
     return res.json();
   },
   create: async (projectId: string, name: string, environment?: string) => {

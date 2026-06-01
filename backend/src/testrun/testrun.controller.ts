@@ -28,6 +28,11 @@ export class TestrunController {
     return this.testrunService.findOne(id);
   }
 
+  @Patch(':id/name')
+  updateName(@Param('id') id: string, @Body('name') name: string) {
+    return this.testrunService.updateName(id, name);
+  }
+
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body('status') status: 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE') {
     return this.testrunService.updateStatus(id, status);

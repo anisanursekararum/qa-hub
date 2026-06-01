@@ -206,6 +206,7 @@ model TestRun {
   startedAt     DateTime?
   endedAt       DateTime?
   environment   String?
+  updatedAt     DateTime  @default(now()) @updatedAt
 
   /// Set of test cases included in this execution run.
   items TestRunItem[]

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
@@ -7,6 +7,8 @@ import RepositoryPage from './pages/RepositoryPage';
 import { ProjectProvider } from './context/ProjectContext';
 import TestRunsPage from './pages/TestRunsPage';
 import TestRunDetailsPage from './pages/TestRunDetailsPage';
+import TestRunCuration from './pages/TestRunCuration';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   return (
@@ -20,6 +22,8 @@ function App() {
           <Route path="/repository" element={<RepositoryPage />} />
           <Route path="/runs" element={<TestRunsPage />} />
           <Route path="/runs/:runId" element={<TestRunDetailsPage />} />
+          <Route path="/runs/:id/curation" element={<TestRunCuration />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Router>
     </ProjectProvider>

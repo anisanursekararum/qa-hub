@@ -22,6 +22,15 @@ export class LoginDto {
   password!: string;
 }
 
+export class ChangePasswordDto {
+  @IsNotEmpty({ message: 'Current password is required.' })
+  oldPassword!: string;
+
+  @IsNotEmpty({ message: 'New password is required.' })
+  @MinLength(8, { message: 'New password must be at least 8 characters long.' })
+  newPassword!: string;
+}
+
 export interface UserPayload {
   id: string;
   email: string;
