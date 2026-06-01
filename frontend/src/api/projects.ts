@@ -80,6 +80,7 @@ export interface InvitationsResponse {
 export const getProjectInvitations = async (projectId: string, page: number = 1, limit: number = 5): Promise<InvitationsResponse> => {
   const res = await fetch(`${API_URL}/project/${projectId}/invitations?page=${page}&limit=${limit}`, {
     headers: getHeaders(),
+    cache: 'no-store',
   });
   if (!res.ok) throw new Error('Failed to fetch project invitations');
   return res.json();

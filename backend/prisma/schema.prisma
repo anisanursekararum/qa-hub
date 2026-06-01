@@ -76,6 +76,8 @@ model User {
   /// Test cases last updated by this user.
   updatedCases       TestCase[] @relation("UpdatedCases")
   csvImportHistories CsvImportHistory[]
+  
+  initiatedTestRuns  TestRun[]
 }
 
 /// Multi-tenant boundary representing a single self-contained test "warehouse".
@@ -195,9 +197,15 @@ model TestRun {
   id        String    @id @default(uuid())
   projectId String
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
-  status    RunStatus @default(DRAFT)
-  createdAt DateTime  @default(now())
+  name          String
+  status        RunStatus @default(DRAFT)
+  createdAt     DateTime  @default(now())
+  
+  initiatedById String?
+  initiatedBy   User?     @relation(fields: [initiatedById], references: [id], onDelete: SetNull)
+  startedAt     DateTime?
+  endedAt       DateTime?
+  environment   String?
 
   /// Set of test cases included in this execution run.
   items TestRunItem[]

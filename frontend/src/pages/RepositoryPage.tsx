@@ -9,6 +9,7 @@ import {
 
 import { getProjectModules, createProjectModule, ProjectModule } from '../api/modules';
 import { getTestCases, createTestCase, updateTestCase, deleteTestCase, importTestCases, getImportHistory, TestCase, BulkTestCasePayload, ImportHistory } from '../api/testcases';
+import { testRunsApi, TestRun } from '../api/testruns';
 import Papa from 'papaparse';
 
 interface FilterCondition {
@@ -41,6 +42,11 @@ export const RepositoryPage: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isNewModuleMode, setIsNewModuleMode] = useState(false);
   const [isViewOnlyMode, setIsViewOnlyMode] = useState(false);
+  const [isAddToRunModalOpen, setIsAddToRunModalOpen] = useState(false);
+
+  // Active Runs state
+  const [activeRuns, setActiveRuns] = useState<TestRun[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string>('');
 
   // Bulk Import State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -833,6 +839,21 @@ export const RepositoryPage: React.FC = () => {
                   </select>
                   <button onClick={async () => {
                      try {
+                       const runs = await testRunsApi.findAll(activeProject!.id);
+                       const openRuns = runs.filter((r: any) => r.status === 'DRAFT' || r.status === 'IN_PROGRESS');
+                       setActiveRuns(openRuns);
+                       if (openRuns.length > 0) {
+                           setSelectedRunId(openRuns[0].id);
+                       }
+                       setIsAddToRunModalOpen(true);
+                     } catch(err) {
+                       console.error(err);
+                     }
+                  }} className="text-white hover:text-[#0F62FE] text-xs font-bold px-3 py-1.5 transition-colors">
+                    Add to Test Run
+                  </button>
+                  <button onClick={async () => {
+                     try {
                        await Promise.all(Array.from(selectedIds).map(id => deleteTestCase(id)));
                        await loadRepositoryData();
                        setSelectedIds(new Set());
@@ -847,6 +868,61 @@ export const RepositoryPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Add To Test Run Modal */}
+      {isAddToRunModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-md animate-in zoom-in-95">
+            <div className="p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] flex justify-between items-center">
+              <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">Add to Test Run</h3>
+              <button onClick={() => setIsAddToRunModalOpen(false)} className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5">
+              <div className="mb-4">
+                <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider mb-2">Select Active Run</label>
+                {activeRuns.length > 0 ? (
+                  <select 
+                    value={selectedRunId} 
+                    onChange={e => setSelectedRunId(e.target.value)}
+                    className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
+                  >
+                    {activeRuns.map(run => (
+                      <option key={run.id} value={run.id}>{run.name} ({run.status})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="text-sm text-[#DA1E28]">No active or draft test runs available. Create one first.</div>
+                )}
+              </div>
+              <p className="text-sm text-[#525252] dark:text-[#A8A8A8] mb-6">You are adding <strong>{selectedIds.size}</strong> test cases.</p>
+              
+              <div className="flex justify-end space-x-3">
+                <button onClick={() => setIsAddToRunModalOpen(false)} className="px-4 py-2 font-sans font-semibold text-sm text-[#161616] dark:text-white hover:bg-[#E0E0E0] dark:hover:bg-[#393939] rounded-[4px] transition-colors">Cancel</button>
+                <button 
+                  onClick={async () => {
+                    if (!selectedRunId) return;
+                    try {
+                      await testRunsApi.addItems(selectedRunId, Array.from(selectedIds));
+                      alert('Successfully added test cases to run!');
+                      setIsAddToRunModalOpen(false);
+                      setSelectedIds(new Set());
+                    } catch(err: any) {
+                      alert('Failed to add to test run: ' + (err.message || 'Unknown error'));
+                    }
+                  }} 
+                  disabled={!selectedRunId} 
+                  className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] disabled:opacity-50 disabled:cursor-not-allowed rounded-[4px] transition-colors shadow-sm"
+                >
+                  Add to Run
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </DashboardLayout>
   );
 };

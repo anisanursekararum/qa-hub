@@ -71,10 +71,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, user
               <LogOut size={16} />
             </button>
             <div className="flex flex-col text-right pl-4 border-l border-[#E0E0E0] dark:border-[#2D2D39]">
-              <span className="font-sans font-semibold text-xs text-[#161616] dark:text-white leading-tight">
+              <span className="font-sans font-semibold text-sm text-[#161616] dark:text-white leading-tight">
                 {user.name}
               </span>
-              <span className="font-mono text-[9px] text-[#757575] dark:text-[#8D8D8D] leading-none mt-1">
+              <span className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D] leading-none mt-1">
                 {user.email}
               </span>
             </div>
