@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { JoinProjectDto, CreateProjectDto, GenerateJoinCodeDto } from './dto/project.dto';
+import { JoinProjectDto, CreateProjectDto, GenerateJoinCodeDto, CreateProjectModuleDto } from './dto/project.dto';
 
 @Controller('project')
 @UseGuards(JwtAuthGuard)
@@ -31,5 +31,15 @@ export class ProjectController {
   @Post('join')
   async joinProject(@Request() req: any, @Body() dto: JoinProjectDto) {
     return this.projectService.joinProjectWithCode(req.user.userId, dto);
+  }
+
+  @Get(':id/modules')
+  async getProjectModules(@Param('id') projectId: string) {
+    return this.projectService.getProjectModules(projectId);
+  }
+
+  @Post(':id/modules')
+  async createProjectModule(@Param('id') projectId: string, @Body() dto: CreateProjectModuleDto) {
+    return this.projectService.createProjectModule(projectId, dto);
   }
 }

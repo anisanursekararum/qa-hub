@@ -11,6 +11,9 @@ export class CreateProjectDto {
   @IsNotEmpty()
   @IsString()
   name!: string;
+
+  @IsString()
+  description!: string;
 }
 
 export class GenerateJoinCodeDto {
@@ -24,4 +27,14 @@ export interface JoinProjectResponse {
   projectId: string;
   projectName: string;
   role: Role;
+}
+
+export class CreateProjectModuleDto {
+  @IsNotEmpty()
+  @IsString()
+  name!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  code!: string;
 }

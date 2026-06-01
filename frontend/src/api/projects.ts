@@ -1,6 +1,6 @@
 const API_URL = 'http://localhost:3000'; // Default NestJS port
 
-const getHeaders = () => {
+export const getHeaders = () => {
   const token = localStorage.getItem('token');
   return {
     'Content-Type': 'application/json',
@@ -16,11 +16,11 @@ export const fetchProjects = async () => {
   return res.json();
 };
 
-export const createProject = async (name: string) => {
+export const createProject = async (name: string, description: string) => {
   const res = await fetch(`${API_URL}/project`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, description }),
   });
   if (!res.ok) throw new Error('Failed to create project');
   return res.json();

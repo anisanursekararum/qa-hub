@@ -186,7 +186,7 @@ export class ProjectService {
     return memberships.map(m => ({
       id: m.project.id,
       name: m.project.name,
-      description: 'A secure workspace for quality assurance testing and test case management.',
+      description: m.project.description,
       role: m.role,
       teamSize: m.project.members.length,
     }));
@@ -196,6 +196,7 @@ export class ProjectService {
     const project = await this.prisma.project.create({
       data: {
         name: dto.name,
+        description: dto.description || 'A newly created workspace.',
         members: {
           create: {
             userId,
@@ -211,7 +212,7 @@ export class ProjectService {
     return {
       id: project.id,
       name: project.name,
-      description: 'A secure workspace for quality assurance testing and test case management.',
+      description: project.description,
       role: Role.ADMIN_PROJECT,
       teamSize: 1,
     };
@@ -267,5 +268,32 @@ export class ProjectService {
     });
 
     return invitation;
+  }
+  async getProjectModules(projectId: string) {
+    return this.prisma.projectModule.findMany({
+      where: { projectId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createProjectModule(projectId: string, dto: { name: string; code: string }) {
+    // Basic formatting: ensure code is uppercase and has no special chars
+    const code = dto.code.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 5);
+    
+    // Ensure uniqueness
+    const existing = await this.prisma.projectModule.findFirst({
+      where: { projectId, code }
+    });
+    if (existing) {
+      throw new ConflictException(`A module with code ${code} already exists in this project.`);
+    }
+
+    return this.prisma.projectModule.create({
+      data: {
+        projectId,
+        name: dto.name,
+        code,
+      },
+    });
   }
 }

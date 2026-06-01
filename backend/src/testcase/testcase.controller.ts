@@ -1,34 +1,30 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { TestcaseService } from './testcase.service';
-import { CreateTestcaseDto } from './dto/create-testcase.dto';
-import { UpdateTestcaseDto } from './dto/update-testcase.dto';
+import { CreateTestCaseDto, UpdateTestCaseDto } from './dto/testcase.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('testcase')
+@UseGuards(JwtAuthGuard)
 export class TestcaseController {
   constructor(private readonly testcaseService: TestcaseService) {}
 
   @Post()
-  create(@Body() createTestcaseDto: CreateTestcaseDto) {
-    return this.testcaseService.create(createTestcaseDto);
+  create(@Request() req: any, @Query('projectId') projectId: string, @Body() dto: CreateTestCaseDto) {
+    return this.testcaseService.create(projectId, req.user.userId, dto);
   }
 
   @Get()
-  findAll() {
-    return this.testcaseService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.testcaseService.findOne(+id);
+  findAll(@Query('projectId') projectId: string) {
+    return this.testcaseService.findAll(projectId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTestcaseDto: UpdateTestcaseDto) {
-    return this.testcaseService.update(+id, updateTestcaseDto);
+  update(@Param('id') id: string, @Body() dto: UpdateTestCaseDto) {
+    return this.testcaseService.update(id, dto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.testcaseService.remove(+id);
+    return this.testcaseService.remove(id);
   }
 }

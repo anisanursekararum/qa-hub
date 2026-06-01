@@ -50,7 +50,7 @@ export const ProjectsPage: React.FC = () => {
     if (!newProjectName.trim()) return;
     
     try {
-      await createProject(newProjectName);
+      await createProject(newProjectName, newProjectDesc);
       await refreshProjects();
       setIsCreateModalOpen(false);
       setNewProjectName('');

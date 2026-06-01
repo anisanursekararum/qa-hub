@@ -7,24 +7,8 @@ import {
   AlertCircle, PlayCircle, X, FileText, UploadCloud, Edit3, Trash2, Search
 } from 'lucide-react';
 
-interface ProjectModule {
-  id: string;
-  name: string;
-  code: string;
-}
-
-interface TestCase {
-  id: string;
-  publicId: string;
-  title: string;
-  moduleId: string;
-  prerequisite: string;
-  steps: string;
-  expectedResult: string;
-  status: 'DRAFT' | 'READY' | 'DEPRECATED';
-  automation: 'MANUAL' | 'AUTOMATED' | 'FLAKY';
-  author: string;
-}
+import { getProjectModules, createProjectModule, ProjectModule } from '../api/modules';
+import { getTestCases, createTestCase, updateTestCase, deleteTestCase, TestCase } from '../api/testcases';
 
 interface FilterCondition {
   id: string;
@@ -39,20 +23,6 @@ interface ImportHistory {
   status: 'SUCCESS' | 'FAILED';
 }
 
-const mockModules: ProjectModule[] = [
-  { id: 'm1', name: 'Authentication', code: 'AUTH' },
-  { id: 'm2', name: 'Payments', code: 'PAY' },
-  { id: 'm3', name: 'UI Components', code: 'UI' },
-];
-
-const mockCases: TestCase[] = [
-  { id: 'tc1', publicId: 'TC-AUTH-001', title: 'Verify successful OAuth login with Google', moduleId: 'm1', prerequisite: 'Valid Google Account', steps: '1. Click Google Login', expectedResult: 'User is redirected to Dashboard', status: 'READY', automation: 'AUTOMATED', author: 'Sarah J.' },
-  { id: 'tc2', publicId: 'TC-AUTH-002', title: 'Handle invalid refresh token gracefully', moduleId: 'm1', prerequisite: 'Expired token', steps: '1. Send request with expired token', expectedResult: 'Returns 401 Unauthorized', status: 'DRAFT', automation: 'MANUAL', author: 'Marcus C.' },
-  { id: 'tc3', publicId: 'TC-PAY-001', title: 'Process Stripe webhook for subscription renewal', moduleId: 'm2', prerequisite: 'Active Stripe webhook endpoint', steps: '1. Send mock webhook payload', expectedResult: 'Subscription extended by 1 month', status: 'READY', automation: 'AUTOMATED', author: 'Sarah J.' },
-  { id: 'tc4', publicId: 'TC-PAY-002', title: 'Decline expired credit card on checkout', moduleId: 'm2', prerequisite: 'User with items in cart', steps: '1. Enter expired card details\n2. Submit', expectedResult: 'Error message: Card Expired', status: 'DRAFT', automation: 'MANUAL', author: 'You' },
-  { id: 'tc5', publicId: 'TC-UI-001', title: 'Display correct localized currency symbol', moduleId: 'm3', prerequisite: 'Locale set to EUR', steps: '1. Load pricing page', expectedResult: 'Prices shown with € symbol', status: 'DEPRECATED', automation: 'FLAKY', author: 'Elena R.' },
-];
-
 const mockImports: ImportHistory[] = [
   { fileName: 'legacy_cases_q3.csv', date: '2026-05-30 14:22:00', status: 'SUCCESS' },
   { fileName: 'payment_tests_v2.csv', date: '2026-05-28 09:15:00', status: 'FAILED' },
@@ -63,8 +33,8 @@ export const RepositoryPage: React.FC = () => {
   const { activeProject } = useProject();
   const navigate = useNavigate();
 
-  const [modules, setModules] = useState<ProjectModule[]>(mockModules);
-  const [cases, setCases] = useState<TestCase[]>(mockCases);
+  const [modules, setModules] = useState<ProjectModule[]>([]);
+  const [cases, setCases] = useState<TestCase[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Filter State
@@ -102,6 +72,26 @@ export const RepositoryPage: React.FC = () => {
     }
   }, [navigate]);
 
+  useEffect(() => {
+    if (activeProject?.id) {
+      loadRepositoryData();
+    }
+  }, [activeProject?.id]);
+
+  const loadRepositoryData = async () => {
+    if (!activeProject?.id) return;
+    try {
+      const [fetchedModules, fetchedCases] = await Promise.all([
+        getProjectModules(activeProject.id),
+        getTestCases(activeProject.id)
+      ]);
+      setModules(fetchedModules);
+      setCases(fetchedCases);
+    } catch (err) {
+      console.error('Failed to fetch repository data', err);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -117,69 +107,66 @@ export const RepositoryPage: React.FC = () => {
 
   const openReviewModal = (tc: TestCase) => {
     setEditingId(tc.id);
+    let parsedSteps = tc.steps;
+    try {
+      const parsed = JSON.parse(tc.steps);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        parsedSteps = parsed[0].step || tc.steps;
+      }
+    } catch (e) {}
+
     setFormData({
       title: tc.title,
       moduleId: tc.moduleId,
       newModuleName: '',
       newModuleCode: '',
-      prerequisite: tc.prerequisite,
-      steps: tc.steps,
-      expectedResult: tc.expectedResult,
-      hasAutomation: tc.automation !== 'MANUAL'
+      prerequisite: tc.prerequisite || '',
+      steps: parsedSteps,
+      expectedResult: tc.expectedResult || '',
+      hasAutomation: tc.hasAutomation
     });
     setIsNewModuleMode(false);
     setIsCaseModalOpen(true);
   };
 
-  const handleCaseSubmit = (e: React.FormEvent) => {
+  const handleCaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title) return;
+    if (!formData.title || !activeProject?.id) return;
 
     let finalModuleId = formData.moduleId;
     
-    // Handle Custom Module Creation
-    if (isNewModuleMode && formData.newModuleName && formData.newModuleCode) {
-      const newModule: ProjectModule = {
-        id: `m_${Math.random().toString(36).substring(2,9)}`,
-        name: formData.newModuleName,
-        code: formData.newModuleCode.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 5)
-      };
-      setModules([...modules, newModule]);
-      finalModuleId = newModule.id;
-    }
+    try {
+      // Handle Custom Module Creation
+      if (isNewModuleMode && formData.newModuleName && formData.newModuleCode) {
+        const newModule = await createProjectModule(activeProject.id, formData.newModuleName, formData.newModuleCode);
+        setModules([...modules, newModule]);
+        finalModuleId = newModule.id;
+      }
 
-    if (!finalModuleId) return;
+      if (!finalModuleId) return;
 
-    const mod = modules.find(m => m.id === finalModuleId) || { code: formData.newModuleCode.toUpperCase() };
-
-    if (editingId) {
-      const targetStatus = submitActionRef.current === 'READY' ? 'READY' : cases.find(c => c.id === editingId)?.status || 'DRAFT';
-      setCases(prev => prev.map(c => c.id === editingId ? {
-        ...c,
+      const payload = {
         title: formData.title,
         moduleId: finalModuleId,
         prerequisite: formData.prerequisite,
         steps: formData.steps,
         expectedResult: formData.expectedResult,
-        automation: formData.hasAutomation ? 'AUTOMATED' : 'MANUAL',
-        status: targetStatus as any
-      } : c));
-    } else {
-      const newTc: TestCase = {
-        id: `tc_${Math.random()}`,
-        publicId: `TC-${mod.code}-${Math.floor(Math.random() * 900) + 100}`,
-        title: formData.title,
-        moduleId: finalModuleId,
-        prerequisite: formData.prerequisite,
-        steps: formData.steps,
-        expectedResult: formData.expectedResult,
-        status: 'DRAFT',
-        automation: formData.hasAutomation ? 'AUTOMATED' : 'MANUAL',
-        author: user?.name || 'You'
+        hasAutomation: formData.hasAutomation,
       };
-      setCases([newTc, ...cases]);
+
+      if (editingId) {
+        const targetStatus = submitActionRef.current === 'READY' ? 'READY' : cases.find(c => c.id === editingId)?.status || 'DRAFT';
+        await updateTestCase(editingId, { ...payload, status: targetStatus });
+      } else {
+        await createTestCase(activeProject.id, payload);
+      }
+      
+      await loadRepositoryData();
+      setIsCaseModalOpen(false);
+    } catch (err) {
+      console.error('Failed to submit case', err);
+      alert('Error submitting test case. Please check module code uniqueness or inputs.');
     }
-    setIsCaseModalOpen(false);
   };
 
   const toggleSelection = (id: string) => {
@@ -197,9 +184,30 @@ export const RepositoryPage: React.FC = () => {
     }
   };
 
-  const handleBulkStatusUpdate = (status: TestCase['status']) => {
-    setCases(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, status } : c));
-    setSelectedIds(new Set());
+  const handleBulkStatusUpdate = async (status: TestCase['status']) => {
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id => {
+          const tc = cases.find(c => c.id === id);
+          if (tc) {
+            return updateTestCase(id, {
+              title: tc.title,
+              moduleId: tc.moduleId,
+              prerequisite: tc.prerequisite || undefined,
+              steps: tc.steps,
+              expectedResult: tc.expectedResult || undefined,
+              hasAutomation: tc.hasAutomation,
+              status
+            });
+          }
+        })
+      );
+      await loadRepositoryData();
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error(err);
+      alert('Error updating status');
+    }
   };
 
   const handleAddFilter = () => {
@@ -235,7 +243,7 @@ export const RepositoryPage: React.FC = () => {
       let match = false;
       if (f.property === 'Status') match = tc.status === f.value;
       else if (f.property === 'Module') match = tc.moduleId === f.value;
-      else if (f.property === 'Automation') match = tc.automation === f.value;
+      else if (f.property === 'Automation') match = (tc.hasAutomation ? 'AUTOMATED' : 'MANUAL') === f.value;
 
       const conditionMet = f.operator === '==' ? match : !match;
       if (!conditionMet) return false;
@@ -267,12 +275,9 @@ export const RepositoryPage: React.FC = () => {
     }
   };
 
-  const AutoPill = ({ auto }: { auto: TestCase['automation'] }) => {
-    switch (auto) {
-      case 'AUTOMATED': return <span className="font-mono text-[10px] text-[#0F62FE] border border-[#0F62FE]/30 px-2 py-0.5 rounded-[2px] font-bold">AUTO</span>;
-      case 'MANUAL': return <span className="font-mono text-[10px] text-[#8D8D8D] border border-[#525252] px-2 py-0.5 rounded-[2px] font-bold">MANUAL</span>;
-      case 'FLAKY': return <span className="font-mono text-[10px] text-[#DA1E28] border border-[#DA1E28]/30 px-2 py-0.5 rounded-[2px] font-bold">FLAKY</span>;
-    }
+  const AutoPill = ({ hasAutomation }: { hasAutomation: boolean }) => {
+    if (hasAutomation) return <span className="font-mono text-[10px] text-[#0F62FE] border border-[#0F62FE]/30 px-2 py-0.5 rounded-[2px] font-bold">AUTO</span>;
+    return <span className="font-mono text-[10px] text-[#8D8D8D] border border-[#525252] px-2 py-0.5 rounded-[2px] font-bold">MANUAL</span>;
   };
 
   return (
@@ -524,7 +529,7 @@ export const RepositoryPage: React.FC = () => {
                           <div className="font-mono text-xs font-bold text-[#0F62FE] w-24">{tc.publicId}</div>
                           <div>
                             <h4 className="font-sans text-sm font-semibold text-[#161616] dark:text-white">{tc.title}</h4>
-                            <div className="flex space-x-2 mt-1"><StatusPill status={tc.status} /><AutoPill auto={tc.automation} /></div>
+                            <div className="flex space-x-2 mt-1"><StatusPill status={tc.status} /><AutoPill hasAutomation={tc.hasAutomation} /></div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2 mt-2 sm:mt-0">
@@ -551,9 +556,14 @@ export const RepositoryPage: React.FC = () => {
                     <option value="DRAFT">Mark DRAFT</option>
                     <option value="DEPRECATED">Mark DEPRECATED</option>
                   </select>
-                  <button onClick={() => {
-                     setCases(cases.filter(c => !selectedIds.has(c.id)));
-                     setSelectedIds(new Set());
+                  <button onClick={async () => {
+                     try {
+                       await Promise.all(Array.from(selectedIds).map(id => deleteTestCase(id)));
+                       await loadRepositoryData();
+                       setSelectedIds(new Set());
+                     } catch (err) {
+                       alert('Error deleting test cases');
+                     }
                   }} className="text-[#DA1E28] hover:text-[#BA1B23] p-1.5 rounded-full hover:bg-[#DA1E28]/10"><Trash2 size={16} /></button>
                 </div>
               </div>

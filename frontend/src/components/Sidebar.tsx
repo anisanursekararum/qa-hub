@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           </a>
           <a href="/repository" className={`flex items-center space-x-3 px-3 py-2 rounded-[4px] font-sans text-xs font-medium transition-colors ${isLinkActive('/repo') ? 'bg-[#0F62FE] text-white shadow-sm' : 'text-[#525252] dark:text-[#A8A8A8] hover:bg-[#E8E8E8] dark:hover:bg-[#1C1C21] hover:text-[#161616] dark:hover:text-white'}`}>
             <Library size={16} />
-            <span>Repo</span>
+            <span>Repository</span>
           </a>
           <a href="/runs" className={`flex items-center space-x-3 px-3 py-2 rounded-[4px] font-sans text-xs font-medium transition-colors ${isLinkActive('/runs') ? 'bg-[#0F62FE] text-white shadow-sm' : 'text-[#525252] dark:text-[#A8A8A8] hover:bg-[#E8E8E8] dark:hover:bg-[#1C1C21] hover:text-[#161616] dark:hover:text-white'}`}>
             <PlayCircle size={16} />
