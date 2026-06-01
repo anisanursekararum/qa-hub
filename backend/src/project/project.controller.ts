@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JoinProjectDto, CreateProjectDto, GenerateJoinCodeDto, CreateProjectModuleDto } from './dto/project.dto';
@@ -26,6 +26,16 @@ export class ProjectController {
   @Post(':id/join-code')
   async generateJoinCode(@Request() req: any, @Param('id') projectId: string, @Body() dto: GenerateJoinCodeDto) {
     return this.projectService.generateJoinCode(projectId, req.user.userId, dto);
+  }
+
+  @Get(':id/invitations')
+  async getProjectInvitations(
+    @Request() req: any, 
+    @Param('id') projectId: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '5'
+  ) {
+    return this.projectService.getInvitations(projectId, req.user.userId, parseInt(page, 10), parseInt(limit, 10));
   }
 
   @Post('join')

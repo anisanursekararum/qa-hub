@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Key, Shield, Trash2, UserPlus, Plus } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 
-import { generateJoinCode } from '../../api/projects';
+import { generateJoinCode, getProjectInvitations, ProjectInvitation } from '../../api/projects';
 
 interface Member {
   id: string;
@@ -16,15 +16,12 @@ interface ProjectAdminPanelProps {
   projectId: string;
 }
 
-interface JoinCode {
-  code: string;
-  status: 'ACTIVE' | 'USED' | 'EXPIRED';
-  expiresIn: string;
-}
-
 export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, projectId }) => {
   const [targetEmail, setTargetEmail] = useState('');
-  const [joinCodes, setJoinCodes] = useState<JoinCode[]>([]);
+  const [joinCodes, setJoinCodes] = useState<ProjectInvitation[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingCodes, setIsLoadingCodes] = useState(false);
   
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -34,13 +31,34 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
     onConfirm: () => void;
   }>({ isOpen: false, title: '', message: '', isDestructive: false, onConfirm: () => {} });
 
+  const fetchCodes = async (currentPage: number) => {
+    try {
+      setIsLoadingCodes(true);
+      const res = await getProjectInvitations(projectId, currentPage, 5);
+      setJoinCodes(res.data);
+      setTotalPages(res.totalPages || 1);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingCodes(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchCodes(page);
+  }, [projectId, page]);
+
   const handleGenerateCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetEmail) return;
     try {
-      const res = await generateJoinCode(projectId, targetEmail);
-      setJoinCodes(prev => [{ code: res.joinCode, status: 'ACTIVE', expiresIn: '03:00:00' }, ...prev]);
+      await generateJoinCode(projectId, targetEmail);
       setTargetEmail('');
+      if (page === 1) {
+        await fetchCodes(1);
+      } else {
+        setPage(1); // will trigger fetch in useEffect
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to generate code.');
@@ -60,12 +78,26 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
     });
   };
 
-  const StatusPill = ({ status }: { status: JoinCode['status'] }) => {
-    switch(status) {
-      case 'ACTIVE': return <span className="font-mono text-[10px] bg-[#0F62FE]/10 text-[#0F62FE] px-2 py-0.5 rounded-[2px] font-bold">ACTIVE</span>;
-      case 'USED': return <span className="font-mono text-[10px] bg-[#24A148]/10 text-[#24A148] px-2 py-0.5 rounded-[2px] font-bold">USED</span>;
-      case 'EXPIRED': return <span className="font-mono text-[10px] bg-[#DA1E28]/10 text-[#DA1E28] px-2 py-0.5 rounded-[2px] font-bold">EXPIRED</span>;
+  const StatusPill = ({ invitation }: { invitation: ProjectInvitation }) => {
+    const isExpired = new Date(invitation.expiredAt) < new Date();
+    if (invitation.isUsed) {
+      return <span className="font-mono text-[10px] bg-[#24A148]/10 text-[#24A148] px-2 py-0.5 rounded-[2px] font-bold">USED</span>;
     }
+    if (isExpired) {
+      return <span className="font-mono text-[10px] bg-[#DA1E28]/10 text-[#DA1E28] px-2 py-0.5 rounded-[2px] font-bold">EXPIRED</span>;
+    }
+    return <span className="font-mono text-[10px] bg-[#0F62FE]/10 text-[#0F62FE] px-2 py-0.5 rounded-[2px] font-bold">ACTIVE</span>;
+  };
+
+  const getExpiresIn = (expiredAt: string) => {
+    const expires = new Date(expiredAt).getTime();
+    const now = new Date().getTime();
+    if (expires < now) return 'EXPIRED';
+    
+    const diff = expires - now;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${mins}m`;
   };
 
   return (
@@ -113,20 +145,49 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
               <thead>
                 <tr className="border-b border-[#393939] bg-[#121212]">
                   <th className="px-5 py-3 font-mono text-[10px] text-[#8D8D8D] uppercase font-semibold">Join Code</th>
+                  <th className="px-5 py-3 font-mono text-[10px] text-[#8D8D8D] uppercase font-semibold">Target Email</th>
                   <th className="px-5 py-3 font-mono text-[10px] text-[#8D8D8D] uppercase font-semibold">Status</th>
                   <th className="px-5 py-3 font-mono text-[10px] text-[#8D8D8D] uppercase font-semibold text-right">Expires In</th>
                 </tr>
               </thead>
               <tbody>
-                {joinCodes.map((code, idx) => (
-                  <tr key={idx} className="border-b border-[#393939] last:border-0 hover:bg-[#1C1C21] transition-colors">
-                    <td className="px-5 py-3 font-mono text-sm font-bold text-white tracking-widest">{code.code}</td>
-                    <td className="px-5 py-3"><StatusPill status={code.status} /></td>
-                    <td className="px-5 py-3 text-right font-mono text-[11px] font-bold text-[#F1C21B]">{code.expiresIn}</td>
-                  </tr>
-                ))}
+                {isLoadingCodes ? (
+                  <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-[#8D8D8D]">Loading...</td></tr>
+                ) : joinCodes.length === 0 ? (
+                  <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-[#8D8D8D]">No active join codes.</td></tr>
+                ) : (
+                  joinCodes.map((code) => (
+                    <tr key={code.id} className="border-b border-[#393939] last:border-0 hover:bg-[#1C1C21] transition-colors">
+                      <td className="px-5 py-3 font-mono text-sm font-bold text-white tracking-widest">{code.joinCode}</td>
+                      <td className="px-5 py-3 font-mono text-xs text-[#A8A8A8]">{code.email}</td>
+                      <td className="px-5 py-3"><StatusPill invitation={code} /></td>
+                      <td className="px-5 py-3 text-right font-mono text-[11px] font-bold text-[#F1C21B]">{getExpiresIn(code.expiredAt)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-[#393939] bg-[#121212]">
+                <button 
+                  disabled={page === 1}
+                  onClick={() => setPage(p => p - 1)}
+                  className="text-xs font-semibold text-[#0F62FE] disabled:text-[#8D8D8D] disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-[#A8A8A8]">Page {page} of {totalPages}</span>
+                <button 
+                  disabled={page === totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                  className="text-xs font-semibold text-[#0F62FE] disabled:text-[#8D8D8D] disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

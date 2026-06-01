@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsString, IsBoolean, IsOptional, IsEnum } from 'class-validator';
-import { CaseStatus } from '@prisma/client';
+import { CaseStatus, CasePriority } from '@prisma/client';
 
 export class CreateTestCaseDto {
   @IsNotEmpty()
@@ -24,10 +24,60 @@ export class CreateTestCaseDto {
 
   @IsBoolean()
   hasAutomation!: boolean;
+
+  @IsOptional()
+  @IsEnum(CasePriority)
+  priority?: CasePriority;
 }
 
 export class UpdateTestCaseDto extends CreateTestCaseDto {
   @IsOptional()
   @IsEnum(CaseStatus)
   status?: CaseStatus;
+}
+
+export class BulkImportItemDto {
+  @IsNotEmpty()
+  @IsString()
+  moduleName!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  moduleCode!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  title!: string;
+
+  @IsOptional()
+  @IsString()
+  prerequisite?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  steps!: string;
+
+  @IsOptional()
+  @IsString()
+  expectedResult?: string;
+
+  @IsBoolean()
+  hasAutomation!: boolean;
+
+  @IsOptional()
+  @IsEnum(CaseStatus)
+  status?: CaseStatus;
+
+  @IsOptional()
+  @IsEnum(CasePriority)
+  priority?: CasePriority;
+}
+
+export class BulkImportTestCaseDto {
+  @IsNotEmpty()
+  @IsString()
+  fileName!: string;
+
+  @IsNotEmpty()
+  items!: BulkImportItemDto[];
 }

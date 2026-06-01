@@ -59,3 +59,28 @@ export const generateJoinCode = async (projectId: string, email: string) => {
   }
   return res.json();
 };
+
+export interface ProjectInvitation {
+  id: string;
+  projectId: string;
+  email: string;
+  joinCode: string;
+  isUsed: boolean;
+  createdAt: string;
+  expiredAt: string;
+}
+
+export interface InvitationsResponse {
+  data: ProjectInvitation[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export const getProjectInvitations = async (projectId: string, page: number = 1, limit: number = 5): Promise<InvitationsResponse> => {
+  const res = await fetch(`${API_URL}/project/${projectId}/invitations?page=${page}&limit=${limit}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to fetch project invitations');
+  return res.json();
+};

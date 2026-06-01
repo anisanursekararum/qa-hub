@@ -296,4 +296,43 @@ export class ProjectService {
       },
     });
   }
+
+  async getInvitations(projectId: string, userId: string, page: number = 1, limit: number = 5) {
+    const member = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+    });
+
+    if (!member || member.role !== Role.ADMIN_PROJECT) {
+      throw new ForbiddenException('Only project admins can view join codes.');
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.projectInvitation.findMany({
+        where: {
+          projectId,
+          isUsed: false,
+          expiredAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.projectInvitation.count({
+        where: {
+          projectId,
+          isUsed: false,
+          expiredAt: { gt: new Date() },
+        },
+      }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
 }

@@ -27,6 +27,13 @@ enum CaseStatus {
   DEPRECATED
 }
 
+/// Represents the priority level of a test case.
+enum CasePriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 /// Represents the operational state of a Test Run.
 enum RunStatus {
   /// Initial state where cases are being curated into the Test Run.
@@ -52,52 +59,56 @@ enum ExecutionStatus {
 /// User accounts system representing engineers, leads, and stakeholders.
 /// Integrates credentials and rate-limiting properties for brute-force OTP protection.
 model User {
-  id            String          @id @default(uuid())
-  email         String          @unique
+  id            String    @id @default(uuid())
+  email         String    @unique
   password      String
   name          String
   /// Number of consecutive failed validation attempts for brute-force OTP protection.
-  attempts      Int             @default(0)
+  attempts      Int       @default(0)
   /// Account lockout timestamp. If populated and in the future, the user is locked out.
   disabledUntil DateTime?
-  createdAt     DateTime        @default(now())
-  
+  createdAt     DateTime  @default(now())
+
   /// Junction relationship mapping this user to their respective projects.
-  projects      ProjectMember[]
+  projects           ProjectMember[]
   /// Test cases authored by this user. Backed by onDelete: SetNull for data retention.
-  testCases     TestCase[]
+  createdCases       TestCase[] @relation("CreatedCases")
+  /// Test cases last updated by this user.
+  updatedCases       TestCase[] @relation("UpdatedCases")
+  csvImportHistories CsvImportHistory[]
 }
 
 /// Multi-tenant boundary representing a single self-contained test "warehouse".
 model Project {
-  id          String              @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
-  description String              @default("A newly created workspace.")
-  createdAt   DateTime            @default(now())
-  
+  description String   @default("A newly created workspace.")
+  createdAt   DateTime @default(now())
+
   /// Active members assigned to this project.
-  members     ProjectMember[]
+  members            ProjectMember[]
   /// Invitations sent out to invite new members to this project.
-  invitations ProjectInvitation[]
+  invitations        ProjectInvitation[]
   /// Custom functional modules defined within this project.
-  modules     ProjectModule[]
+  modules            ProjectModule[]
   /// Test cases stored within this project's repository.
-  testCases   TestCase[]
+  testCases          TestCase[]
   /// Test runs scheduled or executed within this project.
-  testRuns    TestRun[]
+  testRuns           TestRun[]
+  csvImportHistories CsvImportHistory[]
 }
 
 /// Tracks the custom functional modules within a project (e.g. AUTH).
 model ProjectModule {
-  id              String     @id @default(uuid())
+  id              String  @id @default(uuid())
   projectId       String
-  project         Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name            String
   code            String
   /// Current counter for generating sequential IDs like TC-AUTH-001
-  currentSequence Int        @default(0)
-  
-  testCases       TestCase[]
+  currentSequence Int     @default(0)
+
+  testCases TestCase[]
 
   @@unique([projectId, code])
 }
@@ -105,12 +116,12 @@ model ProjectModule {
 /// Junction table facilitating many-to-many relationship between Users and Projects.
 /// Enforces multi-tenancy isolation.
 model ProjectMember {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      Role     @default(MEMBER)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role    @default(MEMBER)
 
   /// A user can have exactly one membership association per project.
   @@unique([projectId, userId])
@@ -135,38 +146,45 @@ model ProjectInvitation {
 
 /// Individual test cases within the project's repository.
 model TestCase {
-  id             String          @id @default(uuid())
-  projectId      String
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   /// The auto-generated public ID (e.g., TC-AUTH-001)
-  publicId       String?
-  
-  title          String
-  
+  publicId String?
+
+  title String
+
   /// The functional module or category this test case belongs to.
-  moduleId       String?
-  module         ProjectModule?  @relation(fields: [moduleId], references: [id], onDelete: SetNull)
-  
-  prerequisite   String?
-  
+  moduleId String?
+  module   ProjectModule? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+
+  prerequisite String?
+
   /// JSON payload representing sequential test steps or parameters.
-  steps          Json
-  
+  steps Json
+
   expectedResult String?
-  
+
   /// Indicator of whether this test case has a matching automation script.
-  hasAutomation  Boolean         @default(false)
-  status         CaseStatus      @default(DRAFT)
-  
+  hasAutomation Boolean      @default(false)
+  status        CaseStatus   @default(DRAFT)
+  priority      CasePriority @default(MEDIUM)
+
   /// Creator's unique identifier.
-  createdById    String?
+  createdById String?
   /// Author association. Decoupled using SetNull so the test case is retained even if the author is deleted.
-  createdBy      User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt      DateTime        @default(now())
-  
+  createdBy   User?    @relation("CreatedCases", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  /// Updater's unique identifier.
+  updatedById String?
+  /// Last updater association.
+  updatedBy   User?    @relation("UpdatedCases", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @default(now()) @updatedAt
+
   /// Execution items in various test runs referencing this test case.
-  testRunItems   TestRunItem[]
+  testRunItems TestRunItem[]
 
   /// Compound index to optimize repository filtering.
   @@index([projectId, status])
@@ -174,15 +192,15 @@ model TestCase {
 
 /// A curated scope of test cases prepared for manual and/or automated execution.
 model TestRun {
-  id          String        @id @default(uuid())
-  projectId   String
-  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
-  status      RunStatus     @default(DRAFT)
-  createdAt   DateTime      @default(now())
-  
+  id        String    @id @default(uuid())
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  status    RunStatus @default(DRAFT)
+  createdAt DateTime  @default(now())
+
   /// Set of test cases included in this execution run.
-  items       TestRunItem[]
+  items TestRunItem[]
 }
 
 /// Junction table mapping a test case to a specific Test Run, containing individual execution state.
@@ -201,4 +219,19 @@ model TestRunItem {
 
   /// Ensure a test case is added at most once to a single test run.
   @@unique([testRunId, testCaseId])
+}
+
+/// Tracks the history of bulk CSV imports.
+model CsvImportHistory {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileName     String
+  rowCount     Int
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  status       String // e.g., "SUCCESS" or "FAILED"
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
 }

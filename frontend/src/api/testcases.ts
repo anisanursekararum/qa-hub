@@ -11,10 +11,12 @@ export interface TestCasePayload {
   expectedResult?: string;
   hasAutomation: boolean;
   status?: 'DRAFT' | 'READY' | 'DEPRECATED';
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
 export interface TestCase {
   id: string;
+  projectId: string;
   publicId: string;
   title: string;
   moduleId: string;
@@ -24,8 +26,11 @@ export interface TestCase {
   expectedResult: string | null;
   hasAutomation: boolean;
   status: 'DRAFT' | 'READY' | 'DEPRECATED';
-  createdBy: { name: string; email: string };
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
   createdAt: string;
+  updatedAt: string;
+  createdBy: { name: string; email: string } | null;
+  updatedBy: { name: string; email: string } | null;
 }
 
 export const getTestCases = async (projectId: string): Promise<TestCase[]> => {
@@ -62,4 +67,50 @@ export const deleteTestCase = async (id: string): Promise<void> => {
     headers: getHeaders(),
   });
   if (!res.ok) throw new Error('Failed to delete test case');
+};
+
+export interface BulkTestCasePayload {
+  moduleName: string;
+  moduleCode: string;
+  title: string;
+  prerequisite?: string;
+  steps: string;
+  expectedResult?: string;
+  hasAutomation: boolean;
+  status: 'DRAFT' | 'READY' | 'DEPRECATED';
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export const importTestCases = async (projectId: string, fileName: string, items: BulkTestCasePayload[]): Promise<{ importedCount: number }> => {
+  const res = await fetch(`${API_URL}/testcase/bulk?projectId=${projectId}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ fileName, items }),
+  });
+  if (!res.ok) throw new Error('Failed to import test cases');
+  return res.json();
+};
+
+export interface ImportHistory {
+  id: string;
+  fileName: string;
+  rowCount: number;
+  uploadedBy: { name: string; email: string };
+  status: string;
+  createdAt: string;
+}
+
+export interface ImportHistoryResponse {
+  data: ImportHistory[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export const getImportHistory = async (projectId: string, page: number = 1): Promise<ImportHistoryResponse> => {
+  const res = await fetch(`${API_URL}/testcase/bulk/history?projectId=${projectId}&page=${page}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to fetch import history');
+  return res.json();
 };

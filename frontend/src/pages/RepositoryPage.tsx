@@ -8,25 +8,15 @@ import {
 } from 'lucide-react';
 
 import { getProjectModules, createProjectModule, ProjectModule } from '../api/modules';
-import { getTestCases, createTestCase, updateTestCase, deleteTestCase, TestCase } from '../api/testcases';
+import { getTestCases, createTestCase, updateTestCase, deleteTestCase, importTestCases, getImportHistory, TestCase, BulkTestCasePayload, ImportHistory } from '../api/testcases';
+import Papa from 'papaparse';
 
 interface FilterCondition {
   id: string;
-  property: 'Status' | 'Module' | 'Automation';
+  property: 'Status' | 'Module' | 'Automation' | 'Priority';
   operator: '==' | '!=';
   value: string;
 }
-
-interface ImportHistory {
-  fileName: string;
-  date: string;
-  status: 'SUCCESS' | 'FAILED';
-}
-
-const mockImports: ImportHistory[] = [
-  { fileName: 'legacy_cases_q3.csv', date: '2026-05-30 14:22:00', status: 'SUCCESS' },
-  { fileName: 'payment_tests_v2.csv', date: '2026-05-28 09:15:00', status: 'FAILED' },
-];
 
 export const RepositoryPage: React.FC = () => {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
@@ -39,7 +29,7 @@ export const RepositoryPage: React.FC = () => {
 
   // Filter State
   const [filters, setFilters] = useState<FilterCondition[]>([]);
-  const [filterProperty, setFilterProperty] = useState<'Status' | 'Module' | 'Automation'>('Status');
+  const [filterProperty, setFilterProperty] = useState<'Status' | 'Module' | 'Automation' | 'Priority'>('Status');
   const [filterOperator, setFilterOperator] = useState<'==' | '!='>('==');
   const [filterValue, setFilterValue] = useState<string>('DRAFT');
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +37,17 @@ export const RepositoryPage: React.FC = () => {
   // Modals state
   const [isCaseModalOpen, setIsCaseModalOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isNewModuleMode, setIsNewModuleMode] = useState(false);
+  const [isViewOnlyMode, setIsViewOnlyMode] = useState(false);
+
+  // Bulk Import State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewData, setPreviewData] = useState<BulkTestCasePayload[] | null>(null);
+  const [importHistory, setImportHistory] = useState<ImportHistory[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,7 +60,8 @@ export const RepositoryPage: React.FC = () => {
     prerequisite: '',
     steps: '',
     expectedResult: '',
-    hasAutomation: false
+    hasAutomation: false,
+    priority: 'MEDIUM' as 'HIGH' | 'MEDIUM' | 'LOW'
   });
 
   useEffect(() => {
@@ -77,6 +78,23 @@ export const RepositoryPage: React.FC = () => {
       loadRepositoryData();
     }
   }, [activeProject?.id]);
+
+  useEffect(() => {
+    if (activeProject?.id && isBulkImportOpen) {
+      fetchHistory();
+    }
+  }, [activeProject?.id, isBulkImportOpen, historyPage]);
+
+  const fetchHistory = async () => {
+    if (!activeProject?.id) return;
+    try {
+      const res = await getImportHistory(activeProject.id, historyPage);
+      setImportHistory(res.data);
+      setHistoryTotalPages(res.totalPages || 1);
+    } catch (err) {
+      console.error('Failed to fetch import history', err);
+    }
+  };
 
   const loadRepositoryData = async () => {
     if (!activeProject?.id) return;
@@ -98,20 +116,96 @@ export const RepositoryPage: React.FC = () => {
     navigate('/login');
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setIsImporting(true);
+    
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        try {
+          const items: BulkTestCasePayload[] = results.data.map((row: any) => ({
+            moduleName: row['Module Name'] || 'Imported',
+            moduleCode: row['Module Code'] || 'IMP',
+            title: row['Title'] || 'Untitled Case',
+            prerequisite: row['Prerequisite'] || undefined,
+            steps: row['Steps'] || 'No steps provided',
+            expectedResult: row['Expected Result'] || undefined,
+            hasAutomation: String(row['Has Automation']).toUpperCase() === 'TRUE',
+            status: 'DRAFT',
+            priority: ['HIGH', 'MEDIUM', 'LOW'].includes(String(row['Priority']).toUpperCase()) 
+              ? String(row['Priority']).toUpperCase() as 'HIGH' | 'MEDIUM' | 'LOW' 
+              : 'MEDIUM'
+          }));
+          setPreviewData(items);
+        } catch (err: any) {
+          alert('Failed to parse CSV: ' + err.message);
+          setSelectedFile(null);
+        } finally {
+          setIsImporting(false);
+        }
+      },
+      error: (error) => {
+        alert('Error reading CSV file: ' + error.message);
+        setIsImporting(false);
+        setSelectedFile(null);
+      }
+    });
+  };
+
+  const confirmBulkImport = async () => {
+    if (!activeProject?.id || !previewData || !selectedFile) return;
+    setIsImporting(true);
+    try {
+      const res = await importTestCases(activeProject.id, selectedFile.name, previewData);
+      alert(`Successfully imported ${res.importedCount} test cases!`);
+      setSelectedFile(null);
+      setPreviewData(null);
+      fetchHistory();
+      await loadRepositoryData();
+    } catch (err: any) {
+      alert('Failed to import CSV: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const cancelBulkImport = () => {
+    setSelectedFile(null);
+    setPreviewData(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const openCreateModal = () => {
     setEditingId(null);
-    setFormData({ title: '', moduleId: '', newModuleName: '', newModuleCode: '', prerequisite: '', steps: '', expectedResult: '', hasAutomation: false });
+    setFormData({ 
+        title: '', 
+        moduleId: modules[0]?.id || '', 
+        newModuleName: '', 
+        newModuleCode: '', 
+        prerequisite: '', 
+        steps: '', 
+        expectedResult: '', 
+        hasAutomation: false,
+        priority: 'MEDIUM'
+    });
     setIsNewModuleMode(false);
+    setIsViewOnlyMode(false);
     setIsCaseModalOpen(true);
   };
 
-  const openReviewModal = (tc: TestCase) => {
+  const openReviewModal = (tc: TestCase, isView: boolean = false) => {
     setEditingId(tc.id);
-    let parsedSteps = tc.steps;
+    let stepsStr = tc.steps;
     try {
       const parsed = JSON.parse(tc.steps);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        parsedSteps = parsed[0].step || tc.steps;
+        stepsStr = parsed[0].step || tc.steps;
       }
     } catch (e) {}
 
@@ -121,11 +215,13 @@ export const RepositoryPage: React.FC = () => {
       newModuleName: '',
       newModuleCode: '',
       prerequisite: tc.prerequisite || '',
-      steps: parsedSteps,
+      steps: stepsStr,
       expectedResult: tc.expectedResult || '',
-      hasAutomation: tc.hasAutomation
+      hasAutomation: tc.hasAutomation,
+      priority: tc.priority || 'MEDIUM'
     });
     setIsNewModuleMode(false);
+    setIsViewOnlyMode(isView);
     setIsCaseModalOpen(true);
   };
 
@@ -134,24 +230,28 @@ export const RepositoryPage: React.FC = () => {
     if (!formData.title || !activeProject?.id) return;
 
     let finalModuleId = formData.moduleId;
+    let submitStatus: 'DRAFT' | 'READY' = submitActionRef.current === 'READY' ? 'READY' : 'DRAFT';
     
     try {
       // Handle Custom Module Creation
-      if (isNewModuleMode && formData.newModuleName && formData.newModuleCode) {
-        const newModule = await createProjectModule(activeProject.id, formData.newModuleName, formData.newModuleCode);
-        setModules([...modules, newModule]);
-        finalModuleId = newModule.id;
+      if (isNewModuleMode) {
+        if (!formData.newModuleName || !formData.newModuleCode) {
+          alert('Please fill out the new module name and code.');
+          return;
+        }
+        const newMod = await createProjectModule(activeProject.id, formData.newModuleName, formData.newModuleCode);
+        finalModuleId = newMod.id;
       }
-
-      if (!finalModuleId) return;
 
       const payload = {
         title: formData.title,
         moduleId: finalModuleId,
-        prerequisite: formData.prerequisite,
+        prerequisite: formData.prerequisite || undefined,
         steps: formData.steps,
-        expectedResult: formData.expectedResult,
+        expectedResult: formData.expectedResult || undefined,
         hasAutomation: formData.hasAutomation,
+        priority: formData.priority,
+        status: submitStatus
       };
 
       if (editingId) {
@@ -176,12 +276,21 @@ export const RepositoryPage: React.FC = () => {
     setSelectedIds(next);
   };
 
-  const toggleAll = () => {
-    if (selectedIds.size === filteredCases.length) {
-      setSelectedIds(new Set());
+
+
+  const toggleModuleSelection = (moduleCases: TestCase[]) => {
+    const next = new Set(selectedIds);
+    const allSelected = moduleCases.every(c => selectedIds.has(c.id));
+
+    if (allSelected) {
+      // Deselect all
+      moduleCases.forEach(c => next.delete(c.id));
     } else {
-      setSelectedIds(new Set(filteredCases.map(c => c.id)));
+      // Select all
+      moduleCases.forEach(c => next.add(c.id));
     }
+    
+    setSelectedIds(next);
   };
 
   const handleBulkStatusUpdate = async (status: TestCase['status']) => {
@@ -197,6 +306,7 @@ export const RepositoryPage: React.FC = () => {
               steps: tc.steps,
               expectedResult: tc.expectedResult || undefined,
               hasAutomation: tc.hasAutomation,
+              priority: tc.priority,
               status
             });
           }
@@ -244,6 +354,7 @@ export const RepositoryPage: React.FC = () => {
       if (f.property === 'Status') match = tc.status === f.value;
       else if (f.property === 'Module') match = tc.moduleId === f.value;
       else if (f.property === 'Automation') match = (tc.hasAutomation ? 'AUTOMATED' : 'MANUAL') === f.value;
+      else if (f.property === 'Priority') match = tc.priority === f.value;
 
       const conditionMet = f.operator === '==' ? match : !match;
       if (!conditionMet) return false;
@@ -264,6 +375,7 @@ export const RepositoryPage: React.FC = () => {
     if (filterProperty === 'Status') return [{v: 'DRAFT', l: 'DRAFT'}, {v: 'READY', l: 'READY'}, {v: 'DEPRECATED', l: 'DEPRECATED'}];
     if (filterProperty === 'Module') return modules.map(m => ({ v: m.id, l: m.name }));
     if (filterProperty === 'Automation') return [{v: 'MANUAL', l: 'MANUAL'}, {v: 'AUTOMATED', l: 'AUTOMATED'}, {v: 'FLAKY', l: 'FLAKY'}];
+    if (filterProperty === 'Priority') return [{v: 'HIGH', l: 'HIGH'}, {v: 'MEDIUM', l: 'MEDIUM'}, {v: 'LOW', l: 'LOW'}];
     return [];
   };
 
@@ -280,6 +392,15 @@ export const RepositoryPage: React.FC = () => {
     return <span className="font-mono text-[10px] text-[#8D8D8D] border border-[#525252] px-2 py-0.5 rounded-[2px] font-bold">MANUAL</span>;
   };
 
+  const PriorityPill = ({ priority }: { priority: 'HIGH' | 'MEDIUM' | 'LOW' }) => {
+    switch (priority) {
+      case 'HIGH': return <span className="font-mono text-[10px] text-[#DA1E28] border border-[#DA1E28]/30 px-2 py-0.5 rounded-[2px] font-bold">HIGH</span>;
+      case 'MEDIUM': return <span className="font-mono text-[10px] text-[#F1C21B] border border-[#F1C21B]/30 px-2 py-0.5 rounded-[2px] font-bold">MED</span>;
+      case 'LOW': return <span className="font-mono text-[10px] text-[#24A148] border border-[#24A148]/30 px-2 py-0.5 rounded-[2px] font-bold">LOW</span>;
+      default: return <span className="font-mono text-[10px] text-[#F1C21B] border border-[#F1C21B]/30 px-2 py-0.5 rounded-[2px] font-bold">MED</span>;
+    }
+  };
+
   return (
     <DashboardLayout user={user} onLogout={handleLogout} currentPath="/repository">
       
@@ -289,9 +410,9 @@ export const RepositoryPage: React.FC = () => {
           <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-3xl my-8 animate-in zoom-in-95">
             <div className="flex justify-between items-center p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] sticky top-0 z-10">
               <div className="flex items-center space-x-2">
-                {editingId ? <Edit3 size={18} className="text-[#0F62FE]" /> : <FilePlus size={18} className="text-[#0F62FE]" />}
+                {editingId ? (isViewOnlyMode ? <FileText size={18} className="text-[#0F62FE]" /> : <Edit3 size={18} className="text-[#0F62FE]" />) : <FilePlus size={18} className="text-[#0F62FE]" />}
                 <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">
-                  {editingId ? 'Review & Edit Case' : 'Manual Case Creation'}
+                  {editingId ? (isViewOnlyMode ? 'Test Case Details' : 'Test Case Details / Edit') : 'Manual Case Creation'}
                 </h3>
               </div>
               <button onClick={() => setIsCaseModalOpen(false)} className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors">
@@ -318,25 +439,27 @@ export const RepositoryPage: React.FC = () => {
                 <div className="bg-[#F7F7F7] dark:bg-[#121212] p-4 rounded-[4px] border border-[#E0E0E0] dark:border-[#393939]">
                   <div className="flex justify-between items-center mb-3">
                     <label className="font-sans text-xs font-bold text-[#161616] dark:text-white uppercase tracking-wider">Module Assignment</label>
-                    {!isNewModuleMode ? (
-                      <button type="button" onClick={() => setIsNewModuleMode(true)} className="text-[#0F62FE] text-xs font-semibold hover:underline">Customize / New Module</button>
-                    ) : (
-                      <button type="button" onClick={() => setIsNewModuleMode(false)} className="text-[#DA1E28] text-xs font-semibold hover:underline">Cancel Custom Module</button>
+                    {!isViewOnlyMode && (
+                      !isNewModuleMode ? (
+                        <button type="button" onClick={() => setIsNewModuleMode(true)} className="text-[#0F62FE] text-xs font-semibold hover:underline">Customize / New Module</button>
+                      ) : (
+                        <button type="button" onClick={() => setIsNewModuleMode(false)} className="text-[#DA1E28] text-xs font-semibold hover:underline">Cancel Custom Module</button>
+                      )
                     )}
                   </div>
                   
                   {!isNewModuleMode ? (
-                    <select required value={formData.moduleId} onChange={e => setFormData({...formData, moduleId: e.target.value})} className="w-full bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]">
+                    <select required value={formData.moduleId} disabled={isViewOnlyMode} onChange={e => setFormData({...formData, moduleId: e.target.value})} className="w-full bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] disabled:bg-[#E0E0E0] dark:disabled:bg-[#2D2D39]">
                       <option value="" disabled>Select an existing module...</option>
                       {modules.map(m => <option key={m.id} value={m.id}>{m.name} ({m.code})</option>)}
                     </select>
                   ) : (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <input type="text" required placeholder="Module Name (e.g. Shopping Cart)" value={formData.newModuleName} onChange={e => setFormData({...formData, newModuleName: e.target.value})} className="w-full bg-white dark:bg-[#1C1C21] border border-[#0F62FE] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none" />
+                        <input type="text" required readOnly={isViewOnlyMode} placeholder="Module Name (e.g. Shopping Cart)" value={formData.newModuleName} onChange={e => setFormData({...formData, newModuleName: e.target.value})} className="w-full bg-white dark:bg-[#1C1C21] border border-[#0F62FE] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none read-only:bg-[#E0E0E0] dark:read-only:bg-[#2D2D39] read-only:border-[#CCCCCC] dark:read-only:border-[#393939]" />
                       </div>
                       <div>
-                        <input type="text" required placeholder="Module Code (e.g. CART)" value={formData.newModuleCode} onChange={e => setFormData({...formData, newModuleCode: e.target.value})} className="w-full bg-white dark:bg-[#1C1C21] border border-[#0F62FE] rounded-[4px] px-3 py-2 font-mono text-sm text-[#161616] dark:text-white focus:outline-none uppercase" />
+                        <input type="text" required readOnly={isViewOnlyMode} placeholder="Module Code (e.g. CART)" value={formData.newModuleCode} onChange={e => setFormData({...formData, newModuleCode: e.target.value})} className="w-full bg-white dark:bg-[#1C1C21] border border-[#0F62FE] rounded-[4px] px-3 py-2 font-mono text-sm text-[#161616] dark:text-white focus:outline-none uppercase read-only:bg-[#E0E0E0] dark:read-only:bg-[#2D2D39] read-only:border-[#CCCCCC] dark:read-only:border-[#393939]" />
                       </div>
                     </div>
                   )}
@@ -345,46 +468,89 @@ export const RepositoryPage: React.FC = () => {
                 {/* Main Fields */}
                 <div>
                   <label className="block font-sans text-xs font-semibold text-[#161616] dark:text-white mb-1.5">Case Title *</label>
-                  <input type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Clear, concise description of the test" className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]" />
+                  <input type="text" required readOnly={isViewOnlyMode} value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Clear, concise description of the test" className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] read-only:cursor-default" />
                 </div>
                 
                 <div>
                   <label className="block font-sans text-xs font-semibold text-[#161616] dark:text-white mb-1.5">Prerequisite</label>
-                  <textarea value={formData.prerequisite} onChange={e => setFormData({...formData, prerequisite: e.target.value})} placeholder="Any required state before executing (e.g., User must be logged in)" rows={2} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none" />
+                  <textarea value={formData.prerequisite} readOnly={isViewOnlyMode} onChange={e => setFormData({...formData, prerequisite: e.target.value})} placeholder="Any required state before executing (e.g., User must be logged in)" rows={2} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
+                </div>
+
+                {/* Priority Selection */}
+                <div>
+                  <label className="block font-sans text-xs font-semibold text-[#161616] dark:text-white mb-1.5">Priority</label>
+                  <select 
+                    value={formData.priority} 
+                    disabled={isViewOnlyMode} 
+                    onChange={e => setFormData({...formData, priority: e.target.value as any})} 
+                    className="w-full md:w-1/3 bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] disabled:cursor-default"
+                  >
+                    <option value="HIGH">High Priority</option>
+                    <option value="MEDIUM">Medium Priority</option>
+                    <option value="LOW">Low Priority</option>
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className="block font-sans text-xs font-semibold text-[#161616] dark:text-white mb-1.5">Test Steps</label>
-                    <textarea value={formData.steps} onChange={e => setFormData({...formData, steps: e.target.value})} placeholder="1. Navigate to...\n2. Click on..." rows={4} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-xs text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none" />
+                    <textarea value={formData.steps} readOnly={isViewOnlyMode} onChange={e => setFormData({...formData, steps: e.target.value})} placeholder="1. Navigate to...\n2. Click on..." rows={4} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-xs text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
                   </div>
                   <div>
                     <label className="block font-sans text-xs font-semibold text-[#161616] dark:text-white mb-1.5">Expected Result</label>
-                    <textarea value={formData.expectedResult} onChange={e => setFormData({...formData, expectedResult: e.target.value})} placeholder="System should display success modal..." rows={4} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none" />
+                    <textarea value={formData.expectedResult} readOnly={isViewOnlyMode} onChange={e => setFormData({...formData, expectedResult: e.target.value})} placeholder="System should display success modal..." rows={4} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-3 pt-2">
-                  <input type="checkbox" id="hasAutomation" checked={formData.hasAutomation} onChange={e => setFormData({...formData, hasAutomation: e.target.checked})} className="w-4 h-4 text-[#0F62FE] bg-[#F4F4F4] dark:bg-[#121212] border-gray-300 rounded" />
+                  <input type="checkbox" id="hasAutomation" disabled={isViewOnlyMode} checked={formData.hasAutomation} onChange={e => setFormData({...formData, hasAutomation: e.target.checked})} className="w-4 h-4 text-[#0F62FE] bg-[#F4F4F4] dark:bg-[#121212] border-gray-300 rounded disabled:opacity-50" />
                   <label htmlFor="hasAutomation" className="font-sans text-sm text-[#161616] dark:text-white font-semibold">Automated script available</label>
                 </div>
+
+                {/* History Section */}
+                {editingId && (
+                  <div className="mt-8 pt-6 border-t border-[#E0E0E0] dark:border-[#393939] grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(() => {
+                      const tc = cases.find(c => c.id === editingId);
+                      if (!tc) return null;
+                      return (
+                        <>
+                          <div className="text-xs text-[#525252] dark:text-[#A8A8A8]">
+                            <span className="font-bold text-[#161616] dark:text-white">Created by: </span>
+                            {tc.createdBy?.name || 'System'} ({new Date(tc.createdAt).toLocaleString()})
+                          </div>
+                          <div className="text-xs text-[#525252] dark:text-[#A8A8A8]">
+                            <span className="font-bold text-[#161616] dark:text-white">Last updated by: </span>
+                            {tc.updatedBy?.name || tc.createdBy?.name || 'System'} ({tc.updatedAt ? new Date(tc.updatedAt).toLocaleString() : new Date(tc.createdAt).toLocaleString()})
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
               
               <div className="p-5 border-t border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] flex justify-end space-x-3 sticky bottom-0">
-                <button type="button" onClick={() => setIsCaseModalOpen(false)} className="px-4 py-2 font-sans font-semibold text-sm text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white transition-colors">Cancel</button>
-                {editingId ? (
-                  <>
-                    <button type="submit" onClick={() => submitActionRef.current = 'UPDATE'} className="px-4 py-2 font-sans font-semibold text-sm text-[#0F62FE] border border-[#0F62FE] hover:bg-[#0F62FE]/10 rounded-[4px] transition-colors shadow-sm">
-                      Update
-                    </button>
-                    <button type="submit" onClick={() => submitActionRef.current = 'READY'} className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#24A148] hover:bg-[#198038] rounded-[4px] transition-colors shadow-sm">
-                      Set Ready
-                    </button>
-                  </>
+                {isViewOnlyMode ? (
+                  <button type="button" onClick={() => setIsCaseModalOpen(false)} className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] rounded-[4px] transition-colors shadow-sm">Close</button>
                 ) : (
-                  <button type="submit" className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] rounded-[4px] transition-colors shadow-sm">
-                    Create Case
-                  </button>
+                  <>
+                    <button type="button" onClick={() => setIsCaseModalOpen(false)} className="px-4 py-2 font-sans font-semibold text-sm text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white transition-colors">Cancel</button>
+                    {editingId ? (
+                      <>
+                        <button type="submit" onClick={() => submitActionRef.current = 'UPDATE'} className="px-4 py-2 font-sans font-semibold text-sm text-[#0F62FE] border border-[#0F62FE] hover:bg-[#0F62FE]/10 rounded-[4px] transition-colors shadow-sm">
+                          Update
+                        </button>
+                        <button type="submit" onClick={() => submitActionRef.current = 'READY'} className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#24A148] hover:bg-[#198038] rounded-[4px] transition-colors shadow-sm">
+                          Set Ready
+                        </button>
+                      </>
+                    ) : (
+                      <button type="submit" className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] rounded-[4px] transition-colors shadow-sm">
+                        Create Case
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </form>
@@ -395,20 +561,111 @@ export const RepositoryPage: React.FC = () => {
       {/* Bulk CSV Import Modal */}
       {isBulkImportOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95">
-            <div className="flex justify-between items-center p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616]">
+          <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95">
+            <div className="flex justify-between items-center p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] sticky top-0 z-10">
               <div className="flex items-center space-x-2">
                 <Upload size={18} className="text-[#161616] dark:text-white" />
                 <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">Bulk CSV Import</h3>
               </div>
-              <button onClick={() => setIsBulkImportOpen(false)} className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors">
+              <button onClick={() => { setIsBulkImportOpen(false); cancelBulkImport(); }} disabled={isImporting} className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors disabled:opacity-50">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6">
-              <div className="border-2 border-dashed border-[#CCCCCC] dark:border-[#393939] rounded-[4px] p-10 flex flex-col items-center justify-center text-center mb-8 bg-[#F7F7F7] dark:bg-[#121212] hover:border-[#0F62FE] cursor-pointer">
-                <UploadCloud size={32} className="text-[#525252] dark:text-[#A8A8A8] mb-4" />
-                <h4 className="font-sans font-bold text-[#161616] dark:text-white mb-1">Click to upload CSV</h4>
+              {!previewData ? (
+                <>
+                  <input 
+                    type="file" 
+                    accept=".csv" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handleFileUpload} 
+                  />
+                  <div 
+                    onClick={() => !isImporting && fileInputRef.current?.click()}
+                    className={`border-2 border-dashed border-[#CCCCCC] dark:border-[#393939] rounded-[4px] p-10 flex flex-col items-center justify-center text-center mb-8 bg-[#F7F7F7] dark:bg-[#121212] ${isImporting ? 'opacity-50 cursor-wait' : 'hover:border-[#0F62FE] cursor-pointer'}`}
+                  >
+                    <UploadCloud size={32} className={`${isImporting ? 'text-[#0F62FE] animate-bounce' : 'text-[#525252] dark:text-[#A8A8A8]'} mb-4`} />
+                    <h4 className="font-sans font-bold text-[#161616] dark:text-white mb-1">
+                      {isImporting ? 'Parsing CSV...' : 'Click to select CSV file'}
+                    </h4>
+                    {!isImporting && <p className="text-xs text-[#757575] mt-2">Ensure headers exactly match the template</p>}
+                  </div>
+                </>
+              ) : (
+                <div className="mb-8 p-6 border border-[#0F62FE] bg-[#F7F7F7] dark:bg-[#121212] rounded-[4px] flex flex-col items-center justify-center">
+                  <FileText size={48} className="text-[#0F62FE] mb-4" />
+                  <h4 className="font-sans font-bold text-[#161616] dark:text-white mb-2">{selectedFile?.name}</h4>
+                  <p className="text-sm text-[#525252] dark:text-[#A8A8A8] mb-6">
+                    Ready to import <strong className="text-[#161616] dark:text-white">{previewData.length}</strong> test cases. Status will be initialized as <strong>DRAFT</strong>.
+                  </p>
+                  <div className="flex space-x-4">
+                    <button onClick={cancelBulkImport} disabled={isImporting} className="px-6 py-2 font-sans font-semibold text-sm text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white transition-colors disabled:opacity-50">
+                      Cancel
+                    </button>
+                    <button onClick={confirmBulkImport} disabled={isImporting} className="px-6 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] rounded-[4px] transition-colors shadow-sm disabled:opacity-50">
+                      {isImporting ? 'Importing...' : 'Submit Import'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* History Table */}
+              <div className="mt-8">
+                <h4 className="font-sans font-bold text-sm text-[#161616] dark:text-white mb-4">Import History</h4>
+                <div className="border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] overflow-hidden bg-white dark:bg-[#1C1C21]">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#F4F4F4] dark:bg-[#2D2D39] border-b border-[#E0E0E0] dark:border-[#393939]">
+                        <th className="px-4 py-3 font-sans text-xs font-semibold text-[#161616] dark:text-white">File Name</th>
+                        <th className="px-4 py-3 font-sans text-xs font-semibold text-[#161616] dark:text-white text-right">Row Count</th>
+                        <th className="px-4 py-3 font-sans text-xs font-semibold text-[#161616] dark:text-white">Uploaded By</th>
+                        <th className="px-4 py-3 font-sans text-xs font-semibold text-[#161616] dark:text-white">Timestamp</th>
+                        <th className="px-4 py-3 font-sans text-xs font-semibold text-[#161616] dark:text-white">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importHistory.length === 0 ? (
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-[#757575] dark:text-[#8D8D8D]">No history found.</td></tr>
+                      ) : (
+                        importHistory.map((h) => (
+                          <tr key={h.id} className="border-b border-[#E0E0E0] dark:border-[#393939] hover:bg-[#F9F9F9] dark:hover:bg-[#121212] transition-colors">
+                            <td className="px-4 py-3 text-sm text-[#161616] dark:text-white truncate max-w-[150px]">{h.fileName}</td>
+                            <td className="px-4 py-3 text-sm text-[#161616] dark:text-white text-right">{h.rowCount}</td>
+                            <td className="px-4 py-3 text-sm text-[#525252] dark:text-[#A8A8A8] truncate max-w-[150px]">{h.uploadedBy?.name || 'Unknown'}</td>
+                            <td className="px-4 py-3 text-xs text-[#525252] dark:text-[#A8A8A8]">{new Date(h.createdAt).toLocaleString()}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${h.status === 'SUCCESS' ? 'bg-[#DEFBE6] text-[#198038] dark:bg-[#198038]/20 dark:text-[#24A148]' : 'bg-[#FFF1F1] text-[#DA1E28] dark:bg-[#DA1E28]/20 dark:text-[#FA4D56]'}`}>
+                                {h.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                  
+                  {/* Pagination Controls */}
+                  {historyTotalPages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-[#E0E0E0] dark:border-[#393939] bg-[#F4F4F4] dark:bg-[#161616]">
+                      <button 
+                        disabled={historyPage === 1}
+                        onClick={() => setHistoryPage(p => p - 1)}
+                        className="text-xs font-semibold text-[#0F62FE] disabled:text-[#A8A8A8] disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-xs text-[#525252] dark:text-[#8D8D8D]">Page {historyPage} of {historyTotalPages}</span>
+                      <button 
+                        disabled={historyPage === historyTotalPages}
+                        onClick={() => setHistoryPage(p => p + 1)}
+                        className="text-xs font-semibold text-[#0F62FE] disabled:text-[#A8A8A8] disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -474,10 +731,12 @@ export const RepositoryPage: React.FC = () => {
                   if (prop === 'Status') setFilterValue('DRAFT');
                   else if (prop === 'Module') setFilterValue(modules[0]?.id || '');
                   else if (prop === 'Automation') setFilterValue('MANUAL');
+                  else if (prop === 'Priority') setFilterValue('HIGH');
                 }} className="bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] text-sm px-2 py-1 rounded-[2px] focus:outline-none dark:text-white text-[#161616]">
                   <option value="Status">Status</option>
                   <option value="Module">Module</option>
                   <option value="Automation">Automation</option>
+                  <option value="Priority">Priority</option>
                 </select>
                 <select value={filterOperator} onChange={e => setFilterOperator(e.target.value as any)} className="bg-transparent text-sm text-[#0F62FE] font-mono focus:outline-none">
                   <option value="==">IS</option>
@@ -517,7 +776,19 @@ export const RepositoryPage: React.FC = () => {
                 <div key={moduleName} className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] shadow-sm">
                   <div className="bg-[#F7F7F7] dark:bg-[#161616] px-5 py-3 border-b border-[#E0E0E0] dark:border-[#2D2D39] flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <input type="checkbox" onChange={toggleAll} checked={selectedIds.size > 0 && Array.from(selectedIds).some(id => moduleCases.find(mc => mc.id === id))} className="w-4 h-4 rounded text-[#0F62FE] border-gray-300 focus:ring-[#0F62FE] bg-[#F4F4F4] dark:bg-[#1C1C21]" />
+                      <input 
+                        type="checkbox" 
+                        onChange={() => toggleModuleSelection(moduleCases)} 
+                        checked={moduleCases.length > 0 && moduleCases.every(mc => selectedIds.has(mc.id))} 
+                        ref={input => {
+                          if (input) {
+                            const someSelected = moduleCases.some(mc => selectedIds.has(mc.id));
+                            const allSelected = moduleCases.every(mc => selectedIds.has(mc.id));
+                            input.indeterminate = someSelected && !allSelected;
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-[#0F62FE] border-gray-300 focus:ring-[#0F62FE] bg-[#F4F4F4] dark:bg-[#1C1C21]" 
+                      />
                       <h3 className="font-mono font-bold text-[11px] uppercase text-[#161616] dark:text-white">Module: {moduleName}</h3>
                     </div>
                   </div>
@@ -526,15 +797,19 @@ export const RepositoryPage: React.FC = () => {
                       <div key={tc.id} className="p-4 hover:bg-[#F4F4F4] dark:hover:bg-[#161616]/50 flex flex-col sm:flex-row justify-between items-center">
                         <div className="flex items-center space-x-4">
                           <input type="checkbox" checked={selectedIds.has(tc.id)} onChange={() => toggleSelection(tc.id)} className="w-4 h-4 rounded text-[#0F62FE] border-gray-300 focus:ring-[#0F62FE] bg-[#F4F4F4] dark:bg-[#1C1C21]" />
-                          <div className="font-mono text-xs font-bold text-[#0F62FE] w-24">{tc.publicId}</div>
+                          <div className="font-mono text-xs font-bold text-[#0F62FE] w-24 cursor-pointer hover:underline" onClick={() => openReviewModal(tc, tc.status === 'DEPRECATED')}>{tc.publicId}</div>
                           <div>
-                            <h4 className="font-sans text-sm font-semibold text-[#161616] dark:text-white">{tc.title}</h4>
-                            <div className="flex space-x-2 mt-1"><StatusPill status={tc.status} /><AutoPill hasAutomation={tc.hasAutomation} /></div>
+                            <h4 className="font-sans text-sm font-semibold text-[#161616] dark:text-white cursor-pointer hover:underline" onClick={() => openReviewModal(tc, tc.status === 'DEPRECATED')}>{tc.title}</h4>
+                            <div className="flex space-x-2 mt-1">
+                              <PriorityPill priority={tc.priority || 'MEDIUM'} />
+                              <StatusPill status={tc.status} />
+                              <AutoPill hasAutomation={tc.hasAutomation} />
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2 mt-2 sm:mt-0">
                           {tc.status === 'DRAFT' && (
-                            <button onClick={() => openReviewModal(tc)} className="bg-[#0F62FE] hover:bg-[#0353E9] text-white text-xs px-3 py-1.5 rounded-[4px]">Review & Submit</button>
+                            <button onClick={() => openReviewModal(tc, false)} className="bg-[#0F62FE] hover:bg-[#0353E9] text-white text-xs px-3 py-1.5 rounded-[4px]">Review & Submit</button>
                           )}
                         </div>
                       </div>
@@ -561,8 +836,8 @@ export const RepositoryPage: React.FC = () => {
                        await Promise.all(Array.from(selectedIds).map(id => deleteTestCase(id)));
                        await loadRepositoryData();
                        setSelectedIds(new Set());
-                     } catch (err) {
-                       alert('Error deleting test cases');
+                     } catch (err: any) {
+                       alert('Error deleting test case: ' + (err.message || 'Unknown error. Make sure it is not part of a test run.'));
                      }
                   }} className="text-[#DA1E28] hover:text-[#BA1B23] p-1.5 rounded-full hover:bg-[#DA1E28]/10"><Trash2 size={16} /></button>
                 </div>
