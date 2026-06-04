@@ -10,6 +10,9 @@ import { JoinProjectDto, JoinProjectResponse, CreateProjectDto, GenerateJoinCode
 import { Role, ProjectMember } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
+import { getProjectInvitationTemplate } from './templates/project-invitation.template';
+import { getRoleChangeTemplate } from './templates/role-change.template';
+import { getRevokeAccessTemplate } from './templates/revoke-access.template';
 
 @Injectable()
 export class ProjectService {
@@ -325,9 +328,41 @@ export class ProjectService {
       }
     });
 
-    await this.sendEmail(dto.email, `Invitation to join ${admin.project.name}`, `You have been invited to join the project workspace by ${admin.user.name}. Your secure join code is: ${code}. It expires in 3 hours.`);
+    const emailData = getProjectInvitationTemplate('User', admin.user.name, admin.project.name, code);
+    await this.sendEmail(dto.email, emailData.subject, emailData.body);
 
     return invitation;
+  }
+
+  async resendInvitationEmail(projectId: string, adminId: string, invitationId: string) {
+    const admin = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: adminId } },
+      include: { user: true, project: true }
+    });
+    if (!admin || admin.role !== Role.ADMIN_PROJECT) {
+      throw new ForbiddenException('Only project admins can resend invitations.');
+    }
+
+    const invitation = await this.prisma.projectInvitation.findUnique({
+      where: { id: invitationId }
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found.');
+    }
+
+    if (invitation.isUsed) {
+      throw new BadRequestException('Cannot resend a used invitation.');
+    }
+
+    if (invitation.expiredAt < new Date()) {
+      throw new BadRequestException('Cannot resend an expired invitation. Please generate a new one.');
+    }
+
+    const emailData = getProjectInvitationTemplate('User', admin.user.name, admin.project.name, invitation.joinCode);
+    await this.sendEmail(invitation.email, emailData.subject, emailData.body);
+
+    return { success: true, message: 'Invitation email resent successfully.' };
   }
 
   async updateMemberRole(projectId: string, adminId: string, targetUserId: string, newRole: string) {
@@ -343,13 +378,25 @@ export class ProjectService {
       throw new BadRequestException('Cannot change your own role.');
     }
 
+    const currentMember = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: targetUserId } },
+      include: { user: true, project: true }
+    });
+
+    if (!currentMember) {
+      throw new NotFoundException('Member not found in project.');
+    }
+
+    const oldRole = currentMember.role;
+
     const member = await this.prisma.projectMember.update({
       where: { projectId_userId: { projectId, userId: targetUserId } },
       data: { role: newRole as Role },
       include: { user: true, project: true }
     });
 
-    await this.sendEmail(member.user.email, `Role Updated in ${member.project.name}`, `Your role has been updated to ${newRole} by ${admin.user.name}.`);
+    const emailData = getRoleChangeTemplate(member.user.name, member.project.name, oldRole, newRole, admin.user.name);
+    await this.sendEmail(member.user.email, emailData.subject, emailData.body);
 
     return member;
   }
@@ -376,7 +423,9 @@ export class ProjectService {
       await this.prisma.projectMember.delete({
         where: { projectId_userId: { projectId, userId: targetUserId } }
       });
-      await this.sendEmail(member.user.email, `Removed from ${member.project.name}`, `You have been removed from the workspace by ${admin.user.name}.`);
+      
+      const emailData = getRevokeAccessTemplate(member.user.name, member.project.name, admin.user.name);
+      await this.sendEmail(member.user.email, emailData.subject, emailData.body);
     }
 
     return { success: true };

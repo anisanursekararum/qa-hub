@@ -10,6 +10,7 @@ import TestRunCuration from './pages/TestRunCuration';
 import SettingsPage from './pages/SettingsPage';
 import LandingPage from './pages/LandingPage';
 import AboutPage from './pages/AboutPage';
+import { GlobalLoader } from './components/shared/GlobalLoader';
 import { useEffect } from 'react';
 
 function App() {
@@ -41,6 +42,7 @@ function App() {
 
   return (
     <ProjectProvider>
+      <GlobalLoader />
       <Router>
         <Routes>
           <Route path="/" element={<LandingPage />} />

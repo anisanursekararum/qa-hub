@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Key, Shield, Trash2, UserPlus, Plus } from 'lucide-react';
+import { Key, Shield, Trash2, UserPlus, UserMinus, Plus, X, Mail } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 
-import { generateJoinCode, getProjectInvitations, ProjectInvitation, updateProjectMemberRole, removeProjectMember } from '../../api/projects';
+import { generateJoinCode, getProjectInvitations, ProjectInvitation, updateProjectMemberRole, removeProjectMember, resendJoinCodeEmail } from '../../api/projects';
 
 interface Member {
   id: string;
@@ -28,6 +28,12 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
   const [joinCodeLimit, setJoinCodeLimit] = useState('5');
   const [lockoutPeriod, setLockoutPeriod] = useState('24');
   const [isAdminSaved, setIsAdminSaved] = useState(false);
+
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({ visible: false, message: '', type: 'success' });
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type });
+  };
 
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -70,9 +76,20 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
       } else {
         setPage(1); // will trigger fetch in useEffect
       }
+      showToast('Join code generated successfully!', 'success');
     } catch (err) {
       console.error(err);
-      alert('Failed to generate code.');
+      showToast('Failed to generate code.', 'error');
+    }
+  };
+
+  const handleResendEmail = async (invitationId: string) => {
+    try {
+      await resendJoinCodeEmail(projectId, invitationId);
+      showToast('Invitation email resent successfully.', 'success');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Failed to resend email.', 'error');
     }
   };
 
@@ -100,9 +117,22 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
       console.log('Promoting member:', member.id, 'in project:', projectId);
       await updateProjectMemberRole(projectId, member.id, 'ADMIN_PROJECT');
       if (onMembersChange) onMembersChange();
+      showToast(`${member.name} promoted to Admin successfully.`, 'success');
     } catch (err: any) {
       console.error('Promote error:', err);
-      alert(`Failed to promote member: ${err?.message || 'Unknown error'}`);
+      showToast(`Failed to promote member: ${err?.message || 'Unknown error'}`, 'error');
+    }
+  };
+
+  const handleDemote = async (member: Member) => {
+    try {
+      console.log('Demoting member:', member.id, 'in project:', projectId);
+      await updateProjectMemberRole(projectId, member.id, 'MEMBER');
+      if (onMembersChange) onMembersChange();
+      showToast(`${member.name} demoted to Member successfully.`, 'success');
+    } catch (err: any) {
+      console.error('Demote error:', err);
+      showToast(`Failed to demote member: ${err?.message || 'Unknown error'}`, 'error');
     }
   };
 
@@ -111,9 +141,10 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
       console.log('Removing member:', member.id, 'from project:', projectId);
       await removeProjectMember(projectId, member.id);
       if (onMembersChange) onMembersChange();
+      showToast(`${member.name} removed from project successfully.`, 'success');
     } catch (err: any) {
       console.error('Remove error:', err);
-      alert(`Failed to remove member: ${err?.message || 'Unknown error'}`);
+      showToast(`Failed to remove member: ${err?.message || 'Unknown error'}`, 'error');
     }
   };
 
@@ -144,7 +175,16 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {toast.visible && (
+        <div className={`fixed top-6 right-6 px-6 py-4 rounded-[4px] shadow-2xl z-[9999] text-white font-sans text-sm font-semibold animate-in fade-in slide-in-from-top-4 flex items-center justify-between min-w-[250px] ${toast.type === 'success' ? 'bg-[#24A148]' : 'bg-[#DA1E28]'}`}>
+          <span>{toast.message}</span>
+          <button onClick={() => setToast({ ...toast, visible: false })} className="ml-4 text-white/80 hover:text-white transition-colors flex-shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
@@ -191,13 +231,14 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
                       <th className="px-5 py-3 font-mono text-[10px] text-[#525252] dark:text-[#8D8D8D] uppercase font-semibold">Target Email</th>
                       <th className="px-5 py-3 font-mono text-[10px] text-[#525252] dark:text-[#8D8D8D] uppercase font-semibold">Status</th>
                       <th className="px-5 py-3 font-mono text-[10px] text-[#525252] dark:text-[#8D8D8D] uppercase font-semibold text-right">Expires In</th>
+                      <th className="px-5 py-3 font-mono text-[10px] text-[#525252] dark:text-[#8D8D8D] uppercase font-semibold text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isLoadingCodes ? (
-                      <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-[#757575] dark:text-[#8D8D8D]">Loading...</td></tr>
+                      <tr><td colSpan={5} className="px-5 py-6 text-center text-sm text-[#757575] dark:text-[#8D8D8D]">Loading...</td></tr>
                     ) : joinCodes.length === 0 ? (
-                      <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-[#757575] dark:text-[#8D8D8D]">No active join codes.</td></tr>
+                      <tr><td colSpan={5} className="px-5 py-6 text-center text-sm text-[#757575] dark:text-[#8D8D8D]">No active join codes.</td></tr>
                     ) : (
                       joinCodes.map((code) => (
                         <tr key={code.id} className="border-b border-[#E0E0E0] dark:border-[#393939] last:border-0 hover:bg-[#F9F9F9] dark:hover:bg-[#1C1C21] transition-colors">
@@ -205,6 +246,16 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
                           <td className="px-5 py-3 font-mono text-xs text-[#525252] dark:text-[#A8A8A8]">{code.email}</td>
                           <td className="px-5 py-3"><StatusPill invitation={code} /></td>
                           <td className="px-5 py-3 text-right font-mono text-[11px] font-bold text-[#F1C21B]">{getExpiresIn(code.expiredAt)}</td>
+                          <td className="px-5 py-3 text-right">
+                            <button
+                              onClick={() => handleResendEmail(code.id)}
+                              disabled={code.isUsed || new Date(code.expiredAt) < new Date()}
+                              className="p-1.5 text-[#0F62FE] hover:bg-[#0F62FE]/10 rounded-[4px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Resend Email"
+                            >
+                              <Mail size={14} />
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -349,6 +400,14 @@ export const ProjectAdminPanel: React.FC<ProjectAdminPanelProps> = ({ members, p
                           className="p-2 text-[#0F62FE] hover:bg-[#0F62FE]/10 rounded-[4px] transition-colors" title="Promote to Admin"
                         >
                           <UserPlus size={16} />
+                        </button>
+                      )}
+                      {member.role === 'ADMIN_PROJECT' && (
+                        <button
+                          onClick={() => confirmAction('Demote to Member', `Are you sure you want to demote ${member.name} to Member? They will lose admin access.`, false, () => handleDemote(member))}
+                          className="p-2 text-[#F1C21B] hover:bg-[#F1C21B]/10 rounded-[4px] transition-colors" title="Demote to Member"
+                        >
+                          <UserMinus size={16} />
                         </button>
                       )}
                       <button

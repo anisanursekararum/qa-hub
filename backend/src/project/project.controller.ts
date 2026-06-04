@@ -58,6 +58,11 @@ export class ProjectController {
     return this.projectService.joinProjectWithCode(req.user.userId, dto);
   }
 
+  @Post(':id/invitations/:invitationId/resend')
+  async resendInvitationEmail(@Request() req: any, @Param('id') projectId: string, @Param('invitationId') invitationId: string) {
+    return this.projectService.resendInvitationEmail(projectId, req.user.userId, invitationId);
+  }
+
   @Get(':id/modules')
   async getProjectModules(@Param('id') projectId: string) {
     return this.projectService.getProjectModules(projectId);

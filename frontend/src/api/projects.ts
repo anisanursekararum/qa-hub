@@ -120,3 +120,15 @@ export const getProjectInvitations = async (projectId: string, page: number = 1,
   if (!res.ok) throw new Error('Failed to fetch project invitations');
   return res.json();
 };
+
+export const resendJoinCodeEmail = async (projectId: string, invitationId: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/invitations/${invitationId}/resend`, {
+    method: 'POST',
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to resend invitation email');
+  }
+  return res.json();
+};
