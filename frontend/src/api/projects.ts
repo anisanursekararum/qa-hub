@@ -26,6 +26,16 @@ export const createProject = async (name: string, description: string) => {
   return res.json();
 };
 
+export const updateProjectStatus = async (projectId: string, status: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/status`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error('Failed to update project status');
+  return res.json();
+};
+
 export const joinProject = async (joinCode: string) => {
   const res = await fetch(`${API_URL}/project/join`, {
     method: 'POST',

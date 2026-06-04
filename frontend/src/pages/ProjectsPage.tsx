@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { JoinProjectCard } from '../components/projects/JoinProjectCard';
 import { ProjectAdminPanel } from '../components/projects/ProjectAdminPanel';
 import { MemberDirectory } from '../components/projects/MemberDirectory';
-import { Users, ArrowLeft, Plus, X } from 'lucide-react';
+import { Users, ArrowLeft, Plus, X, Search, EyeOff, Eye } from 'lucide-react';
 import { useProject, Project } from '../context/ProjectContext';
-import { createProject, getProjectMembers } from '../api/projects';
+import { createProject, getProjectMembers, updateProjectStatus } from '../api/projects';
 
 export const ProjectsPage: React.FC = () => {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
@@ -15,11 +15,21 @@ export const ProjectsPage: React.FC = () => {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { availableProjects, refreshProjects } = useProject();
   const [members, setMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [visibleCount, setVisibleCount] = useState(4);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
+
+  const filteredProjects = availableProjects.filter(p => {
+    const matchesStatus = p.status === filterStatus;
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          p.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -29,6 +39,13 @@ export const ProjectsPage: React.FC = () => {
       setUser(JSON.parse(storedUser));
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (location.state?.projectId && availableProjects.length > 0) {
+      const proj = availableProjects.find(p => p.id === location.state.projectId);
+      if (proj) setSelectedProject(proj);
+    }
+  }, [location.state, availableProjects]);
 
   useEffect(() => {
     if (selectedProject) {
@@ -144,11 +161,38 @@ export const ProjectsPage: React.FC = () => {
               </button>
             </div>
 
+            <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center bg-[#F4F4F4] dark:bg-[#1C1C21] p-3 rounded-[4px] border border-[#E0E0E0] dark:border-[#2D2D39]">
+              <div className="relative w-full sm:w-64">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#757575] dark:text-[#8D8D8D]" />
+                <input 
+                  type="text" 
+                  placeholder="Search workspaces..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] pl-9 pr-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] transition-colors"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => setFilterStatus('ACTIVE')}
+                  className={`px-4 py-1.5 font-sans text-sm font-semibold rounded-[4px] transition-colors ${filterStatus === 'ACTIVE' ? 'bg-[#0F62FE] text-white' : 'bg-transparent text-[#525252] dark:text-[#A8A8A8] hover:bg-[#E0E0E0] dark:hover:bg-[#393939]'}`}
+                >
+                  Active
+                </button>
+                <button 
+                  onClick={() => setFilterStatus('ARCHIVED')}
+                  className={`px-4 py-1.5 font-sans text-sm font-semibold rounded-[4px] transition-colors ${filterStatus === 'ARCHIVED' ? 'bg-[#0F62FE] text-white' : 'bg-transparent text-[#525252] dark:text-[#A8A8A8] hover:bg-[#E0E0E0] dark:hover:bg-[#393939]'}`}
+                >
+                  Archived
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-col lg:flex-row gap-8 items-start">
               {/* Project Grid */}
               <div className="flex-1 w-full">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {availableProjects.slice(0, visibleCount).map(proj => (
+                  {filteredProjects.slice(0, visibleCount).map(proj => (
                     <div
                       key={proj.id}
                       onClick={() => setSelectedProject(proj)}
@@ -161,9 +205,29 @@ export const ProjectsPage: React.FC = () => {
                           }`}>
                           {proj.role}
                         </span>
-                        <div className="flex items-center space-x-1.5 text-[#757575] dark:text-[#8D8D8D]">
-                          <Users size={14} />
-                          <span className="font-mono text-[10px]">{proj.teamSize}</span>
+                        <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-1.5 text-[#757575] dark:text-[#8D8D8D]">
+                            <Users size={14} />
+                            <span className="font-mono text-[10px]">{proj.teamSize}</span>
+                          </div>
+                          {proj.role === 'ADMIN_PROJECT' && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const newStatus = proj.status === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE';
+                                try {
+                                  await updateProjectStatus(proj.id, newStatus);
+                                  refreshProjects();
+                                } catch (err) {
+                                  console.error(err);
+                                }
+                              }}
+                              className="text-[#525252] dark:text-[#8D8D8D] hover:text-[#0F62FE] dark:hover:text-[#4589FF] transition-colors"
+                              title={proj.status === 'ACTIVE' ? "Hide/Archive Workspace" : "Unhide/Activate Workspace"}
+                            >
+                              {proj.status === 'ACTIVE' ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -172,7 +236,7 @@ export const ProjectsPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                {availableProjects.length > visibleCount && (
+                {filteredProjects.length > visibleCount && (
                   <div className="mt-6 flex justify-center">
                     <button 
                       onClick={() => setVisibleCount(c => c + 4)}

@@ -89,7 +89,9 @@ model Project {
   id          String   @id @default(uuid())
   name        String
   description String   @default("A newly created workspace.")
+  status      String   @default("ACTIVE")
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 
   /// Active members assigned to this project.
   members            ProjectMember[]

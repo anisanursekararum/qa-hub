@@ -5,6 +5,8 @@ export interface Project {
   id: string;
   name: string;
   description: string;
+  status: string;
+  updatedAt: string;
   role: 'ADMIN_PROJECT' | 'MEMBER';
   teamSize: number;
 }

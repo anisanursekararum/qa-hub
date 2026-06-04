@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../components/DashboardLayout';
+import { ProjectSwitcher } from '../components/ProjectSwitcher';
 import { useProject } from '../context/ProjectContext';
 import {
   FilePlus, Upload, Sparkles, Filter, CheckCircle2, Clock,
@@ -719,14 +720,18 @@ export const RepositoryPage: React.FC = () => {
               <AlertCircle size={24} className="text-[#0F62FE]" />
             </div>
             <h2 className="font-sans font-bold text-2xl text-[#161616] dark:text-white mb-2">No Workspace Selected</h2>
+            <div className="mt-4"><ProjectSwitcher /></div>
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="mb-8">
-              <h1 className="font-sans font-black text-3xl text-[#161616] dark:text-white tracking-tight mb-2">Test Repository</h1>
-              <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8]">
-                Manage cases for <span className="font-bold">{activeProject.name}</span>.
-              </p>
+            <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <h1 className="font-sans font-black text-3xl text-[#161616] dark:text-white tracking-tight mb-2">Test Repository</h1>
+                <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8]">
+                  Manage cases for <span className="font-bold">{activeProject.name}</span>.
+                </p>
+              </div>
+              <ProjectSwitcher />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

@@ -55,7 +55,6 @@ export class DashboardService {
           select: { members: true, testRuns: true }
         }
       },
-      take: 4,
       orderBy: { createdAt: 'desc' }
     });
 
@@ -136,8 +135,10 @@ export class DashboardService {
 
     // 7. Performance Table Data (latest TestRuns with item counts)
     const recentRuns = await this.prisma.testRun.findMany({
-      where: { projectId: { in: projectIds } },
-      take: 5,
+      where: { 
+        projectId: { in: projectIds },
+        status: { not: RunStatus.ARCHIVED }
+      },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

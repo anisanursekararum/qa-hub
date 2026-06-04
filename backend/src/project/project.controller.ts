@@ -18,6 +18,11 @@ export class ProjectController {
     return this.projectService.createProject(req.user.userId, dto);
   }
 
+  @Put(':id/status')
+  async updateProjectStatus(@Request() req: any, @Param('id') projectId: string, @Body('status') status: string) {
+    return this.projectService.updateProjectStatus(projectId, req.user.userId, status);
+  }
+
   @Get(':id/members')
   async getProjectMembers(@Request() req: any, @Param('id') projectId: string) {
     return this.projectService.getProjectMembers(projectId, req.user.userId);

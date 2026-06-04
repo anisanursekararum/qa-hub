@@ -13,6 +13,7 @@ export const DashboardPage: React.FC = () => {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [visibleProjectsCount, setVisibleProjectsCount] = useState(2);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -68,29 +69,32 @@ export const DashboardPage: React.FC = () => {
             value={loading ? '-' : summary?.stats.activeRuns.toString() || '0'}
             subtitle={<span className="text-[#0F62FE] font-bold">Currently executing</span>}
             icon={<Activity size={14} />}
-            borderColor="bg-[#0F62FE]"
+            colorName="blue"
           />
           <StatCard
             title="AI Efficiency"
             value="--"
             subtitle={<span className="text-[#161616] dark:text-[#E0E0E0] font-semibold">Coming Soon</span>}
             icon={<Zap size={14} className="text-[#8A3FFC]" />}
+            colorName="purple"
           />
           <StatCard
             title="Failed Cases"
             value={loading ? '-' : summary?.stats.openDefects.toString() || '0'}
             subtitle={<span className="text-[#DA1E28] font-bold">In active runs</span>}
             icon={<Bug size={14} className="text-[#DA1E28]" />}
+            colorName="red"
           />
           <StatCard
             title="Test Coverage"
             value={loading ? '-' : `${summary?.stats.testCoverage || 0}%`}
             subtitle={
               <div className="w-full bg-[#E0E0E0] dark:bg-[#393939] h-1.5 mt-2 rounded-full overflow-hidden">
-                <div className="bg-[#0F62FE] h-full" style={{ width: `${summary?.stats.testCoverage || 0}%` }}></div>
+                <div className="bg-[#24A148] h-full" style={{ width: `${summary?.stats.testCoverage || 0}%` }}></div>
               </div>
             }
             icon={<CheckSquare size={14} />}
+            colorName="green"
           />
         </div>
 
@@ -99,8 +103,13 @@ export const DashboardPage: React.FC = () => {
 
           {/* Left Column */}
           <div className="flex-1 min-w-0 flex flex-col space-y-6">
-            {/* My Projects */}
+            {/* Test Suite Performance */}
             <section>
+              <PerformanceTable performance={summary?.performance || []} />
+            </section>
+
+            {/* My Projects */}
+            <section className="pt-2">
               <div className="bg-[#F4F4F4] dark:bg-[#1C1C21] px-4 py-3 flex justify-between items-center rounded-t-[4px] border-b border-[#E0E0E0] dark:border-[#2D2D39]">
                 <h2 className="font-mono font-bold text-[11px] text-[#161616] dark:text-white uppercase tracking-wider">My Projects</h2>
               </div>
@@ -108,8 +117,12 @@ export const DashboardPage: React.FC = () => {
                 {loading ? (
                   <div className="p-4 font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D]">Loading projects...</div>
                 ) : (
-                  summary?.projects.map((project, idx) => (
-                    <div key={project.id} className="border-b md:border-b-0 md:border-r border-[#E0E0E0] dark:border-[#2D2D39]">
+                  summary?.projects.slice(0, visibleProjectsCount).map((project, idx) => (
+                    <div
+                      key={project.id}
+                      className="border-b md:border-b-0 md:border-r border-[#E0E0E0] dark:border-[#2D2D39] cursor-pointer hover:bg-[#F4F4F4] dark:hover:bg-[#1C1C21]/50 transition-colors"
+                      onClick={() => navigate('/projects', { state: { projectId: project.id } })}
+                    >
                       <ProjectCard
                         title={project.name}
                         description={project.description}
@@ -123,14 +136,19 @@ export const DashboardPage: React.FC = () => {
                   ))
                 )}
                 {summary?.projects.length === 0 && (
-                   <div className="p-4 font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D]">No projects found.</div>
+                  <div className="p-4 font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D]">No projects found.</div>
                 )}
               </div>
-            </section>
-
-            {/* Test Suite Performance */}
-            <section className="pt-2">
-              <PerformanceTable performance={summary?.performance || []} />
+              {summary && summary.projects.length > visibleProjectsCount && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={() => setVisibleProjectsCount(c => c + 2)}
+                    className="font-sans font-semibold text-sm text-[#0F62FE] hover:text-[#0353E9] transition-colors px-6 py-2 border border-[#0F62FE] rounded-[4px]"
+                  >
+                    Load More
+                  </button>
+                </div>
+              )}
             </section>
           </div>
 

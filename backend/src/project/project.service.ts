@@ -212,13 +212,15 @@ export class ProjectService {
           }
         },
       },
-      orderBy: { project: { createdAt: 'desc' } }
+      orderBy: { project: { updatedAt: 'desc' } }
     });
 
     return memberships.map(m => ({
       id: m.project.id,
       name: m.project.name,
       description: m.project.description,
+      status: m.project.status,
+      updatedAt: m.project.updatedAt.toISOString(),
       role: m.role,
       teamSize: m.project.members.length,
     }));
@@ -245,8 +247,31 @@ export class ProjectService {
       id: project.id,
       name: project.name,
       description: project.description,
+      status: project.status,
+      updatedAt: project.updatedAt.toISOString(),
       role: Role.ADMIN_PROJECT,
       teamSize: 1,
+    };
+  }
+
+  async updateProjectStatus(projectId: string, userId: string, status: string) {
+    const member = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } }
+    });
+
+    if (!member || member.role !== Role.ADMIN_PROJECT) {
+      throw new ForbiddenException('Only project admins can update the project status.');
+    }
+
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: { status }
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      updatedAt: updated.updatedAt.toISOString()
     };
   }
 

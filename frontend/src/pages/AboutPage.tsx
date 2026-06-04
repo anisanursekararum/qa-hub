@@ -37,23 +37,26 @@ const AboutPage = () => {
           <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] p-6 shadow-sm">
             <h2 className="font-sans font-bold text-xl text-[#161616] dark:text-white mb-4">Meet the Creator</h2>
             <div className="flex flex-col md:flex-row gap-6 items-start">
-              <div className="w-24 h-24 rounded-full bg-[#0F62FE] text-white flex items-center justify-center font-sans font-black text-4xl flex-shrink-0">
-                QC
-              </div>
+              <img
+                src="/creator_picture.JPEG"
+                alt="Creator"
+                className="w-24 h-24 rounded-full object-cover flex-shrink-0 border-2 border-[#E0E0E0] dark:border-[#393939]"
+              />
               <div>
                 <h3 className="font-sans font-black text-2xl text-[#161616] dark:text-white mb-2">QA-Hub Creator</h3>
                 <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8] leading-relaxed mb-4">
-                  Welcome to QA-Hub! I built this platform to simplify and empower quality assurance teams across the globe. By centralizing test management, execution, and AI-driven insights, QA-Hub aims to boost productivity and ensure high-quality software releases.
+                  Welcome to QA-Hub! I'm Anisa, a QA professional and the creator of this platform. QA-Hub is designed to simplify engineering workflows by centralizing all your testing needs. It’s a tool built not just for QA, but for every IT professional committed to safeguarding system quality. By integrating test management, execution, and AI-powered insights, QA-Hub boosts productivity and drives high-quality software delivery. High-quality releases mean happy users 🥳🎉
                 </p>
                 <div className="flex gap-4">
-                  <a href="#" className="text-[#0F62FE] hover:underline font-sans text-sm font-semibold">GitHub</a>
-                  <a href="#" className="text-[#0F62FE] hover:underline font-sans text-sm font-semibold">LinkedIn</a>
-                  <a href="#" className="text-[#0F62FE] hover:underline font-sans text-sm font-semibold">Portfolio</a>
+                  <a href="https://www.linkedin.com/in/anisa-arum/" className="text-[#0F62FE] hover:underline font-sans text-sm font-semibold">LinkedIn</a>
+                  <a href="https://github.com/anisanursekararum" className="text-[#0F62FE] hover:underline font-sans text-sm font-semibold">GitHub</a>
+                  <a href="https://medium.com/@anisa-nur-sekar-arum" className="text-[#0F62FE] hover:underline font-sans text-sm font-semibold">Medium</a>
+                  <a href="https://anisanursekararum.github.io/" className="text-[#0F62FE] hover:underline font-sans text-sm font-semibold">Portfolio</a>
                 </div>
               </div>
             </div>
           </div>
-          
+
           <div className="mt-8 text-center">
             <p className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D]">
               QA-Hub Core v1.0.0 &copy; {new Date().getFullYear()}
