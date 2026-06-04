@@ -34,8 +34,18 @@ export class TestrunController {
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body('status') status: 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE') {
+  updateStatus(@Param('id') id: string, @Body('status') status: 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE' | 'ARCHIVED') {
     return this.testrunService.updateStatus(id, status);
+  }
+
+  @Patch(':id/environment')
+  updateEnvironment(@Param('id') id: string, @Body('environment') environment: string) {
+    return this.testrunService.updateEnvironment(id, environment);
+  }
+
+  @Delete(':id')
+  deleteRun(@Param('id') id: string) {
+    return this.testrunService.deleteRun(id);
   }
 
   @Post(':id/items')

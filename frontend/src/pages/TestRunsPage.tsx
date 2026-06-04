@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlayCircle, Plus, Copy, FileText, CheckCircle2, CircleDashed, Clock, ChevronRight } from 'lucide-react';
+import { PlayCircle, Plus, Copy, FileText, CheckCircle2, CircleDashed, Clock, ChevronRight, Archive, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useProject } from '../context/ProjectContext';
 import { testRunsApi, TestRun } from '../api/testruns';
@@ -17,7 +17,7 @@ const TestRunsPage = () => {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE' | 'ARCHIVED'>('ALL');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -84,12 +84,34 @@ const TestRunsPage = () => {
     }
   };
 
+  const handleArchive = async (runId: string) => {
+    if (!activeProject) return;
+    try {
+      await testRunsApi.updateStatus(runId, 'ARCHIVED');
+      loadRuns();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (runId: string) => {
+    if (!activeProject) return;
+    if (!window.confirm('Are you sure you want to permanently delete this test run?')) return;
+    try {
+      await testRunsApi.deleteRun(runId);
+      loadRuns();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const StatusPill = ({ status }: { status: TestRun['status'] }) => {
     switch (status) {
       case 'DRAFT': return <span className="flex items-center space-x-1 font-mono text-xs text-[#F1C21B] bg-[#F1C21B]/10 px-2 py-0.5 rounded-[2px] font-bold"><Clock size={12} /><span>DRAFT</span></span>;
       case 'IN_PROGRESS': return <span className="flex items-center space-x-1 font-mono text-xs text-[#0F62FE] bg-[#0F62FE]/10 px-2 py-0.5 rounded-[2px] font-bold"><CircleDashed size={12} /><span>IN PROGRESS</span></span>;
       case 'AUTOMATION_RUNNING': return <span className="flex items-center space-x-1 font-mono text-xs text-[#8A3FFC] bg-[#8A3FFC]/10 px-2 py-0.5 rounded-[2px] font-bold animate-pulse"><PlayCircle size={12} /><span>AUTOMATION RUNNING</span></span>;
       case 'DONE': return <span className="flex items-center space-x-1 font-mono text-xs text-[#24A148] bg-[#24A148]/10 px-2 py-0.5 rounded-[2px] font-bold"><CheckCircle2 size={12} /><span>DONE</span></span>;
+      case 'ARCHIVED': return <span className="flex items-center space-x-1 font-mono text-xs text-[#757575] bg-[#E0E0E0]/50 px-2 py-0.5 rounded-[2px] font-bold"><Archive size={12} /><span>ARCHIVED</span></span>;
     }
   };
 
@@ -120,14 +142,15 @@ const TestRunsPage = () => {
     <DashboardLayout user={user} onLogout={handleLogout} currentPath="/runs">
       <div className="p-6 sm:p-8 max-w-7xl mx-auto min-h-full pb-32">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="mb-8">
-            <h1 className="font-sans font-black text-3xl text-[#161616] dark:text-white tracking-tight mb-2">Test Runs</h1>
-            <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8]">
-              Manage test cycles for <span className="font-bold">{activeProject.name}</span>.
-            </p>
-          </div>
-
-          <div className="mb-8">
+          <div className="mb-8 border-b border-[#E0E0E0] dark:border-[#2D2D39] pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="font-sans font-black text-3xl text-[#161616] dark:text-white tracking-tight mb-2">
+                Test Runs
+              </h1>
+              <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8]">
+                Manage test cycles for <span className="font-bold">{activeProject.name}</span>.
+              </p>
+            </div>
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="bg-[#0F62FE] hover:bg-[#0353E9] text-white font-sans font-semibold text-sm px-6 py-2.5 rounded-[4px] transition-colors shadow-sm flex items-center space-x-2 w-fit"
@@ -136,6 +159,7 @@ const TestRunsPage = () => {
               <span>New Test Run</span>
             </button>
           </div>
+
 
           <div className="flex flex-col md:flex-row gap-4 items-center bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] p-3 rounded-[4px] mb-4 shadow-sm sticky top-0 z-10">
             {/* Search Bar */}
@@ -164,6 +188,7 @@ const TestRunsPage = () => {
                   <option value="IN_PROGRESS">IN PROGRESS</option>
                   <option value="AUTOMATION_RUNNING">AUTOMATION RUNNING</option>
                   <option value="DONE">DONE</option>
+                  <option value="ARCHIVED">ARCHIVED</option>
                 </select>
               </div>
             </div>
@@ -210,6 +235,9 @@ const TestRunsPage = () => {
                         if (!run.name.toLowerCase().includes(q) && !(run.environment?.toLowerCase().includes(q))) {
                           return false;
                         }
+                      }
+                      if (statusFilter === 'ALL' && run.status === 'ARCHIVED') {
+                        return false;
                       }
                       if (statusFilter !== 'ALL' && run.status !== statusFilter) {
                         return false;
@@ -282,6 +310,14 @@ const TestRunsPage = () => {
                                 {run.updatedAt ? new Date(run.updatedAt).toLocaleDateString() : '-'}
                               </td>
                               <td className="px-4 py-4 text-right space-x-2">
+                                {run.status !== 'ARCHIVED' && (
+                                  <button onClick={() => handleArchive(run.id)} className="text-[#525252] hover:text-[#0F62FE] dark:text-[#A8A8A8]" title="Archive Run">
+                                    <Archive size={16} />
+                                  </button>
+                                )}
+                                <button onClick={() => handleDelete(run.id)} className="text-[#525252] hover:text-[#DA1E28] dark:text-[#A8A8A8]" title="Delete Run">
+                                  <Trash2 size={16} />
+                                </button>
                                 <button onClick={() => handleDuplicate(run.id)} className="text-[#525252] hover:text-[#161616] dark:text-[#A8A8A8] dark:hover:text-white" title="Duplicate Run">
                                   <Copy size={16} />
                                 </button>
@@ -306,6 +342,9 @@ const TestRunsPage = () => {
                     if (!run.name.toLowerCase().includes(q) && !(run.environment?.toLowerCase().includes(q))) {
                       return false;
                     }
+                  }
+                  if (statusFilter === 'ALL' && run.status === 'ARCHIVED') {
+                    return false;
                   }
                   if (statusFilter !== 'ALL' && run.status !== statusFilter) {
                     return false;

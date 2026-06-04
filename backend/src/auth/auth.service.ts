@@ -34,7 +34,7 @@ export class AuthService {
       },
     });
 
-    const token = await this.generateToken(user.id, user.email);
+    const token = await this.generateToken(user.id, user.email, user.tokenVersion);
 
     return {
       user: {
@@ -73,7 +73,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    const token = await this.generateToken(user.id, user.email);
+    const token = await this.generateToken(user.id, user.email, user.tokenVersion);
 
     return {
       user: {
@@ -108,11 +108,19 @@ export class AuthService {
     return { message: 'Password updated successfully' };
   }
 
+  async invalidateSessions(userId: string): Promise<{ message: string }> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    return { message: 'All sessions invalidated successfully' };
+  }
+
   /**
    * Generates a signed JWT access token for the authenticated user.
    */
-  private async generateToken(userId: string, email: string): Promise<string> {
-    const payload = { sub: userId, email };
+  private async generateToken(userId: string, email: string, tokenVersion: number): Promise<string> {
+    const payload = { sub: userId, email, tokenVersion };
     return this.jwtService.signAsync(payload);
   }
 }

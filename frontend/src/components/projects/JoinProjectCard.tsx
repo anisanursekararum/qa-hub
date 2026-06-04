@@ -27,8 +27,8 @@ export const JoinProjectCard: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] p-6 shadow-sm">
-      <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white mb-2">Join Project</h3>
+    <div className="bg-[#F4F4F4] dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] p-6 shadow-sm">
+      <h3 className="font-sans font-bold text-lg text-[#0F62FE] dark:text-white mb-2">Secure Access</h3>
       <p className="font-sans text-xs text-[#525252] dark:text-[#A8A8A8] mb-6 leading-relaxed">
         Enter the 6-character access code provided by your Project Admin.
       </p>
@@ -41,7 +41,7 @@ export const JoinProjectCard: React.FC = () => {
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             placeholder="XXXXXX"
-            className="w-full bg-[#F7F7F7] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-4 py-3 font-mono text-center text-2xl tracking-[0.5em] text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] focus:ring-1 focus:ring-[#0F62FE] transition-colors uppercase placeholder:opacity-50"
+            className="w-full bg-white dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-4 py-3 font-mono text-center text-2xl tracking-[0.5em] text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] focus:ring-1 focus:ring-[#0F62FE] transition-colors uppercase placeholder:opacity-50"
           />
         </div>
 

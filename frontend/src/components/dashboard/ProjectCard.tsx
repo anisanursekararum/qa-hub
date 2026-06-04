@@ -43,12 +43,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ title, description, st
         <p className="font-sans text-xs sm:text-sm text-[#525252] dark:text-[#A8A8A8] flex-1 leading-relaxed">{description}</p>
         
         <div className="mt-4 flex justify-between items-center border-t border-[#E0E0E0] dark:border-[#2D2D39] pt-3">
-           <div className="flex items-center -space-x-1.5">
-             <div className="w-6 h-6 rounded-full bg-gray-300 border-2 border-white dark:border-[#1C1C21]"></div>
-             <div className="w-6 h-6 rounded-full bg-gray-400 border-2 border-white dark:border-[#1C1C21]"></div>
-             <div className="w-6 h-6 rounded-full bg-[#F4F4F4] dark:bg-[#2D2D39] border-2 border-white dark:border-[#1C1C21] flex items-center justify-center">
-               <span className="font-mono text-[9px] font-bold text-[#525252] dark:text-[#A8A8A8]">+{users}</span>
-             </div>
+           <div className="flex items-center space-x-1">
+             <span className="font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] bg-[#F4F4F4] dark:bg-[#2D2D39] px-2 py-1 rounded-[4px]">
+               {users} Member{users !== 1 ? 's' : ''}
+             </span>
            </div>
            <span className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D]">{updatedText}</span>
         </div>

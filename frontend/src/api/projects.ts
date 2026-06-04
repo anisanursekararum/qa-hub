@@ -47,15 +47,40 @@ export const getProjectMembers = async (projectId: string) => {
   return res.json();
 };
 
-export const generateJoinCode = async (projectId: string, email: string) => {
+export const generateJoinCode = async (projectId: string, email: string): Promise<ProjectInvitation> => {
   const res = await fetch(`${API_URL}/project/${projectId}/join-code`, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify({ email }),
   });
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Failed to generate join code');
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to generate code');
+  }
+  return res.json();
+};
+
+export const updateProjectMemberRole = async (projectId: string, memberId: string, role: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/members/${memberId}/role`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to update member role');
+  }
+  return res.json();
+};
+
+export const removeProjectMember = async (projectId: string, memberId: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/members/${memberId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to remove member');
   }
   return res.json();
 };

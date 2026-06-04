@@ -13,7 +13,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       <div>
         <div className="h-16 flex items-center px-6 border-b border-[#E0E0E0] dark:border-[#2D2D39]">
           <a href="/" className="flex items-center space-x-2.5 focus:outline-none">
-            <img src="/qa-hub-logo.png" alt="QA-Hub Logo" className="w-8 h-8 rounded-[4px] object-contain bg-white" />
+            <div className="w-10 h-10 rounded-[4px] bg-white overflow-hidden flex items-center justify-center flex-shrink-0">
+              <img src="/qa-hub-logo.png" alt="QA-Hub Logo" className="w-full h-full object-cover scale-[1.35]" />
+            </div>
             <span className="font-sans font-bold text-lg text-[#161616] dark:text-white tracking-wide">
               QA<span className="text-[#0F62FE]">-Hub</span>
             </span>
@@ -46,13 +48,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
       <div className="p-3 mb-2 border-t border-[#E0E0E0] dark:border-[#2D2D39]">
         <nav className="space-y-1">
-          <a href="/help" className="flex items-center space-x-3 px-3 py-2 rounded-[4px] font-sans text-xs font-medium text-[#757575] dark:text-[#8D8D8D] hover:bg-[#E8E8E8] dark:hover:bg-[#1C1C21] hover:text-[#161616] dark:hover:text-white transition-colors">
+          <a href="/about" className={`flex items-center space-x-3 px-3 py-2 rounded-[4px] font-sans text-xs font-medium transition-colors ${isLinkActive('/about') ? 'bg-[#0F62FE] text-white shadow-sm' : 'text-[#757575] dark:text-[#8D8D8D] hover:bg-[#E8E8E8] dark:hover:bg-[#1C1C21] hover:text-[#161616] dark:hover:text-white'}`}>
             <HelpCircle size={14} />
-            <span>Help</span>
-          </a>
-          <a href="/support" className="flex items-center space-x-3 px-3 py-2 rounded-[4px] font-sans text-xs font-medium text-[#757575] dark:text-[#8D8D8D] hover:bg-[#E8E8E8] dark:hover:bg-[#1C1C21] hover:text-[#161616] dark:hover:text-white transition-colors">
-            <LifeBuoy size={14} />
-            <span>Support</span>
+            <span>About</span>
           </a>
         </nav>
       </div>

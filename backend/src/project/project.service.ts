@@ -9,10 +9,42 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JoinProjectDto, JoinProjectResponse, CreateProjectDto, GenerateJoinCodeDto } from './dto/project.dto';
 import { Role, ProjectMember } from '@prisma/client';
 import * as crypto from 'crypto';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class ProjectService {
-  constructor(private readonly prisma: PrismaService) { }
+  private transporter: nodemailer.Transporter;
+
+  constructor(private readonly prisma: PrismaService) {
+    if (process.env.SMTP_URL) {
+      // Gunakan SMTP URL dari .env jika ada
+      this.transporter = nodemailer.createTransport(process.env.SMTP_URL);
+    } else {
+      // Fallback ke konfigurasi bawaan Ethereal untuk testing lokal
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        auth: {
+          user: process.env.SMTP_USER || 'ethereal.user@ethereal.email',
+          pass: process.env.SMTP_PASS || 'etherealpassword'
+        }
+      });
+    }
+  }
+
+  private async sendEmail(to: string, subject: string, text: string) {
+    try {
+      const info = await this.transporter.sendMail({
+        from: '"QA-Hub System" <no-reply@qa-hub.local>',
+        to,
+        subject,
+        text
+      });
+      console.log('Email sent: %s', nodemailer.getTestMessageUrl(info));
+    } catch (error) {
+      console.error('Failed to send email:', error);
+    }
+  }
 
   /**
   * Handles validation of the Join Code (OTP) and grants user membership to a project workspace.
@@ -244,7 +276,8 @@ export class ProjectService {
 
   async generateJoinCode(projectId: string, adminId: string, dto: GenerateJoinCodeDto) {
     const admin = await this.prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId: adminId } }
+      where: { projectId_userId: { projectId, userId: adminId } },
+      include: { user: true, project: true }
     });
     if (!admin || admin.role !== Role.ADMIN_PROJECT) {
       throw new ForbiddenException('Only project admins can generate join codes.');
@@ -267,7 +300,61 @@ export class ProjectService {
       }
     });
 
+    await this.sendEmail(dto.email, `Invitation to join ${admin.project.name}`, `You have been invited to join the project workspace by ${admin.user.name}. Your secure join code is: ${code}. It expires in 3 hours.`);
+
     return invitation;
+  }
+
+  async updateMemberRole(projectId: string, adminId: string, targetUserId: string, newRole: string) {
+    const admin = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: adminId } },
+      include: { user: true }
+    });
+    if (!admin || admin.role !== Role.ADMIN_PROJECT) {
+      throw new ForbiddenException('Only admins can change roles.');
+    }
+    
+    if (adminId === targetUserId) {
+      throw new BadRequestException('Cannot change your own role.');
+    }
+
+    const member = await this.prisma.projectMember.update({
+      where: { projectId_userId: { projectId, userId: targetUserId } },
+      data: { role: newRole as Role },
+      include: { user: true, project: true }
+    });
+
+    await this.sendEmail(member.user.email, `Role Updated in ${member.project.name}`, `Your role has been updated to ${newRole} by ${admin.user.name}.`);
+
+    return member;
+  }
+
+  async removeMember(projectId: string, adminId: string, targetUserId: string) {
+    const admin = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: adminId } },
+      include: { user: true }
+    });
+    if (!admin || admin.role !== Role.ADMIN_PROJECT) {
+      throw new ForbiddenException('Only admins can remove members.');
+    }
+    
+    if (adminId === targetUserId) {
+      throw new BadRequestException('Cannot remove yourself.');
+    }
+
+    const member = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: targetUserId } },
+      include: { user: true, project: true }
+    });
+
+    if (member) {
+      await this.prisma.projectMember.delete({
+        where: { projectId_userId: { projectId, userId: targetUserId } }
+      });
+      await this.sendEmail(member.user.email, `Removed from ${member.project.name}`, `You have been removed from the workspace by ${admin.user.name}.`);
+    }
+
+    return { success: true };
   }
   async getProjectModules(projectId: string) {
     return this.prisma.projectModule.findMany({

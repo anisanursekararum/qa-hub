@@ -19,6 +19,7 @@ const SettingsPage = () => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
+  const [isInvalidating, setIsInvalidating] = useState(false);
 
   // Admin Controls State (Local/Mock for now)
   const [joinCodeLimit, setJoinCodeLimit] = useState('3');
@@ -42,7 +43,7 @@ const SettingsPage = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    window.location.href = '/login';
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -63,10 +64,10 @@ const SettingsPage = () => {
     setIsSubmittingPassword(true);
     try {
       await authApi.changePassword(oldPassword, newPassword);
-      setPasswordSuccess('Password successfully updated.');
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      setPasswordSuccess('Password successfully updated. Logging out from all sessions...');
+      setTimeout(() => {
+        handleLogout();
+      }, 1500);
     } catch (err: any) {
       setPasswordError(err.message || 'Failed to update password.');
     } finally {
@@ -74,10 +75,18 @@ const SettingsPage = () => {
     }
   };
 
-  const handleAdminSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAdminSaved(true);
-    setTimeout(() => setIsAdminSaved(false), 3000);
+  const handleInvalidateSessions = async () => {
+    if (!window.confirm('Are you sure you want to log out of all devices? You will be logged out immediately.')) return;
+    setIsInvalidating(true);
+    try {
+      await authApi.invalidateSessions();
+      alert('All sessions invalidated. You will now be logged out.');
+      handleLogout();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsInvalidating(false);
+    }
   };
 
   const handlePreferencesSave = (e: React.FormEvent) => {
@@ -106,7 +115,7 @@ const SettingsPage = () => {
   if (!user) return null;
 
   return (
-    <DashboardLayout user={user} onLogout={handleLogout} currentPath="/settings">
+    <DashboardLayout user={user} onLogout={handleLogout} currentPath="/settings" hideProjectSwitcher={true}>
       <div className="p-6 sm:p-8 max-w-5xl mx-auto min-h-full pb-32">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="mb-8">
@@ -127,15 +136,7 @@ const SettingsPage = () => {
                 <span>Security & Profile</span>
               </button>
 
-              {activeProject && (
-                <button
-                  onClick={() => setActiveTab('admin')}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-[4px] font-sans text-sm font-semibold transition-colors ${activeTab === 'admin' ? 'bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white' : 'text-[#525252] dark:text-[#A8A8A8] hover:bg-[#F4F4F4] dark:hover:bg-[#2D2D39]'}`}
-                >
-                  <Lock size={18} />
-                  <span>Admin Control Center</span>
-                </button>
-              )}
+
 
               <button
                 onClick={() => setActiveTab('notifications')}
@@ -221,71 +222,25 @@ const SettingsPage = () => {
                       </button>
                     </form>
                   </div>
+                  
+                  <div className="mt-8 pt-6 border-t border-[#E0E0E0] dark:border-[#393939]">
+                    <h3 className="font-sans font-bold text-sm text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider mb-4">Session Management</h3>
+                    <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8] mb-4">
+                      Log out of all active sessions across all devices. This will invalidate all your current access tokens.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleInvalidateSessions}
+                      disabled={isInvalidating}
+                      className="bg-[#DA1E28] hover:bg-[#b0171e] text-white font-sans font-semibold text-sm px-6 py-2.5 rounded-[4px] transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      {isInvalidating ? 'Invalidating...' : 'Log out of all devices'}
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {/* Admin Control Center Tab */}
-              {activeTab === 'admin' && activeProject && (
-                <div className="p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200">
-                  <h2 className="font-sans font-bold text-xl text-[#161616] dark:text-white mb-6 flex items-center border-b border-[#E0E0E0] dark:border-[#393939] pb-4">
-                    <Lock className="mr-3 text-[#8A3FFC]" size={20} /> Administrative Control Center
-                  </h2>
-                  <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8] mb-8">
-                    High-precision controls for workspace security and access limits. Values represent critical configuration states for <span className="font-bold text-[#161616] dark:text-white">{activeProject.name}</span>.
-                  </p>
 
-                  <form onSubmit={handleAdminSave} className="space-y-8 max-w-2xl">
-                    <div className="bg-[#F4F4F4] dark:bg-[#121212] p-5 rounded-[4px] border border-[#E0E0E0] dark:border-[#2D2D39]">
-                      <h3 className="font-sans font-bold text-sm text-[#161616] dark:text-white mb-4 flex items-center">
-                        <Shield size={16} className="mr-2 text-[#0F62FE]" /> Brute-Force Protection
-                      </h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider mb-2">Max Failed Attempts</label>
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="number"
-                              min="1" max="10"
-                              value={joinCodeLimit}
-                              onChange={e => setJoinCodeLimit(e.target.value)}
-                              className="w-24 bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-sm text-[#0F62FE] font-bold focus:outline-none focus:border-[#0F62FE]"
-                            />
-                            <span className="font-sans text-sm text-[#525252] dark:text-[#8D8D8D]">attempts</span>
-                          </div>
-                          <p className="mt-2 text-xs text-[#757575] dark:text-[#8D8D8D] font-mono leading-tight">Threshold before automated lockout engages to prevent brute-force attacks on Join Codes.</p>
-                        </div>
-
-                        <div>
-                          <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] uppercase tracking-wider mb-2">Lockout Duration</label>
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="number"
-                              min="1" max="72"
-                              value={lockoutPeriod}
-                              onChange={e => setLockoutPeriod(e.target.value)}
-                              className="w-24 bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-mono text-sm text-[#DA1E28] font-bold focus:outline-none focus:border-[#DA1E28]"
-                            />
-                            <span className="font-sans text-sm text-[#525252] dark:text-[#8D8D8D]">hour(s)</span>
-                          </div>
-                          <p className="mt-2 text-xs text-[#757575] dark:text-[#8D8D8D] font-mono leading-tight">Duration of the temporary ban imposed on the offending IP/User account.</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-4 border-t border-[#E0E0E0] dark:border-[#393939] pt-6">
-                      <button
-                        type="submit"
-                        className="bg-[#161616] dark:bg-white text-white dark:text-[#161616] font-sans font-semibold text-sm px-6 py-2.5 rounded-[4px] transition-colors shadow-sm flex items-center space-x-2"
-                      >
-                        <Save size={16} />
-                        <span>Save Configurations</span>
-                      </button>
-                      {isAdminSaved && <span className="font-mono text-sm text-[#24A148] flex items-center animate-in fade-in"><CheckCircle2 size={16} className="mr-1" /> Config Saved</span>}
-                    </div>
-                  </form>
-                </div>
-              )}
 
               {/* Notifications Tab Placeholder */}
               {activeTab === 'notifications' && (

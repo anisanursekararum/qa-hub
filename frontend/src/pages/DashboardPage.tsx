@@ -48,7 +48,7 @@ export const DashboardPage: React.FC = () => {
   if (!user) return null;
 
   return (
-    <DashboardLayout user={user} onLogout={handleLogout} currentPath="/dashboard">
+    <DashboardLayout user={user} onLogout={handleLogout} currentPath="/dashboard" hideProjectSwitcher={true}>
       <div className="p-6 sm:p-8 max-w-7xl mx-auto">
 
         {/* Header Section */}
@@ -77,9 +77,9 @@ export const DashboardPage: React.FC = () => {
             icon={<Zap size={14} className="text-[#8A3FFC]" />}
           />
           <StatCard
-            title="Failed Tests"
+            title="Failed Cases"
             value={loading ? '-' : summary?.stats.openDefects.toString() || '0'}
-            subtitle={<span className="text-[#DA1E28] font-bold">Requires attention</span>}
+            subtitle={<span className="text-[#DA1E28] font-bold">In active runs</span>}
             icon={<Bug size={14} className="text-[#DA1E28]" />}
           />
           <StatCard

@@ -19,6 +19,7 @@ export const ProjectsPage: React.FC = () => {
   const { availableProjects, refreshProjects } = useProject();
   const [members, setMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(4);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -147,7 +148,7 @@ export const ProjectsPage: React.FC = () => {
               {/* Project Grid */}
               <div className="flex-1 w-full">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {availableProjects.map(proj => (
+                  {availableProjects.slice(0, visibleCount).map(proj => (
                     <div
                       key={proj.id}
                       onClick={() => setSelectedProject(proj)}
@@ -171,6 +172,16 @@ export const ProjectsPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                {availableProjects.length > visibleCount && (
+                  <div className="mt-6 flex justify-center">
+                    <button 
+                      onClick={() => setVisibleCount(c => c + 4)}
+                      className="font-sans font-semibold text-sm text-[#0F62FE] hover:text-[#0353E9] transition-colors px-6 py-2 border border-[#0F62FE] rounded-[4px]"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Join Section */}
@@ -211,7 +222,19 @@ export const ProjectsPage: React.FC = () => {
             {isLoadingMembers ? (
               <div className="text-sm text-[#525252] dark:text-[#A8A8A8]">Loading members...</div>
             ) : selectedProject.role === 'ADMIN_PROJECT' ? (
-              <ProjectAdminPanel members={members} projectId={selectedProject.id} />
+              <ProjectAdminPanel 
+                members={members} 
+                projectId={selectedProject.id} 
+                onMembersChange={() => {
+                  setIsLoadingMembers(true);
+                  import('../api/projects').then(({ getProjectMembers }) => {
+                    getProjectMembers(selectedProject.id)
+                      .then(setMembers)
+                      .catch(console.error)
+                      .finally(() => setIsLoadingMembers(false));
+                  });
+                }}
+              />
             ) : (
               <MemberDirectory members={members} />
             )}

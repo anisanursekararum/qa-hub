@@ -44,6 +44,8 @@ enum RunStatus {
   AUTOMATION_RUNNING
   /// Official closure of the release quality gate.
   DONE
+  /// Test run is archived and hidden from default views.
+  ARCHIVED
 }
 
 /// The status of a specific test case inside an active Test Run.
@@ -67,6 +69,8 @@ model User {
   attempts      Int       @default(0)
   /// Account lockout timestamp. If populated and in the future, the user is locked out.
   disabledUntil DateTime?
+  /// Token version for global session invalidation.
+  tokenVersion  Int       @default(0)
   createdAt     DateTime  @default(now())
 
   /// Junction relationship mapping this user to their respective projects.
@@ -172,6 +176,9 @@ model TestCase {
   hasAutomation Boolean      @default(false)
   status        CaseStatus   @default(DRAFT)
   priority      CasePriority @default(MEDIUM)
+  
+  /// Optional notes or comments.
+  notes         String?
 
   /// Creator's unique identifier.
   createdById String?
