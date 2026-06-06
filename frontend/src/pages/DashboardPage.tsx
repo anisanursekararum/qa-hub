@@ -136,7 +136,9 @@ export const DashboardPage: React.FC = () => {
                   ))
                 )}
                 {summary?.projects.length === 0 && (
-                  <div className="p-4 font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D]">No projects found.</div>
+                  <div className="p-4 font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D]">
+                    No projects are currently monitored on the dashboard. You can add them from the Workspaces page.
+                  </div>
                 )}
               </div>
               {summary && summary.projects.length > visibleProjectsCount && (

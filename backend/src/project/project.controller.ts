@@ -23,6 +23,11 @@ export class ProjectController {
     return this.projectService.updateProjectStatus(projectId, req.user.userId, status);
   }
 
+  @Put(':id/monitoring')
+  async updateProjectMonitoring(@Request() req: any, @Param('id') projectId: string, @Body('isMonitored') isMonitored: boolean) {
+    return this.projectService.updateProjectMonitoring(projectId, req.user.userId, isMonitored);
+  }
+
   @Get(':id/members')
   async getProjectMembers(@Request() req: any, @Param('id') projectId: string) {
     return this.projectService.getProjectMembers(projectId, req.user.userId);

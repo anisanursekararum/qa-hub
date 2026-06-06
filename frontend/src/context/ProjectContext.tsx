@@ -6,6 +6,7 @@ export interface Project {
   name: string;
   description: string;
   status: string;
+  isMonitored: boolean;
   updatedAt: string;
   role: 'ADMIN_PROJECT' | 'MEMBER';
   teamSize: number;

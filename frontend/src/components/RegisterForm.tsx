@@ -103,11 +103,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchT
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${
-              errors.name
-                ? 'border-[#DA1E28] focus:border-[#DA1E28]'
-                : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
-            }`}
+            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${errors.name
+              ? 'border-[#DA1E28] focus:border-[#DA1E28]'
+              : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
+              }`}
             placeholder="John Doe"
           />
           {errors.name && (
@@ -118,18 +117,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchT
         {/* Email Address */}
         <div>
           <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#E0E0E0] mb-1">
-            Work Email
+            Email
           </label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${
-              errors.email
-                ? 'border-[#DA1E28] focus:border-[#DA1E28]'
-                : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
-            }`}
-            placeholder="name@company.com"
+            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${errors.email
+              ? 'border-[#DA1E28] focus:border-[#DA1E28]'
+              : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
+              }`}
+            placeholder="name@domain.com"
           />
           {errors.email && (
             <p className="font-sans text-[10px] text-[#DA1E28] mt-0.5">{errors.email}</p>
@@ -145,11 +143,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchT
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${
-              errors.password
-                ? 'border-[#DA1E28] focus:border-[#DA1E28]'
-                : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
-            }`}
+            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${errors.password
+              ? 'border-[#DA1E28] focus:border-[#DA1E28]'
+              : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
+              }`}
             placeholder="••••••••"
           />
           {errors.password ? (
@@ -170,11 +167,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchT
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${
-              errors.confirmPassword
-                ? 'border-[#DA1E28] focus:border-[#DA1E28]'
-                : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
-            }`}
+            className={`w-full h-9 px-3 font-sans text-xs border rounded-[4px] bg-white dark:bg-[#1C1C21] text-[#161616] dark:text-white placeholder-[#A8A8A8] focus:outline-none transition-all duration-150 ${errors.confirmPassword
+              ? 'border-[#DA1E28] focus:border-[#DA1E28]'
+              : 'border-[#CCCCCC] dark:border-[#393939] focus:border-[#0F62FE]'
+              }`}
             placeholder="••••••••"
           />
           {errors.confirmPassword && (

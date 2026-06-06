@@ -32,13 +32,13 @@ export class CreateTestCaseDto {
   @IsOptional()
   @IsString()
   notes?: string;
-}
 
-export class UpdateTestCaseDto extends CreateTestCaseDto {
   @IsOptional()
   @IsEnum(CaseStatus)
   status?: CaseStatus;
 }
+
+export class UpdateTestCaseDto extends CreateTestCaseDto {}
 
 export class BulkImportItemDto {
   @IsNotEmpty()

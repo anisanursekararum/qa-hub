@@ -36,6 +36,16 @@ export const updateProjectStatus = async (projectId: string, status: string) => 
   return res.json();
 };
 
+export const updateProjectMonitoring = async (projectId: string, isMonitored: boolean) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/monitoring`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ isMonitored }),
+  });
+  if (!res.ok) throw new Error('Failed to update project monitoring status');
+  return res.json();
+};
+
 export const joinProject = async (joinCode: string) => {
   const res = await fetch(`${API_URL}/project/join`, {
     method: 'POST',

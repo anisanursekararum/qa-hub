@@ -9,7 +9,10 @@ export class DashboardService {
   async getSummary(userId: string) {
     // 1. Get user's projects
     const memberships = await this.prisma.projectMember.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        project: { isMonitored: true }
+      },
       select: { projectId: true },
     });
     const projectIds = memberships.map(m => m.projectId);

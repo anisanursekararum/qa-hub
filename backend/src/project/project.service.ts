@@ -223,6 +223,7 @@ export class ProjectService {
       name: m.project.name,
       description: m.project.description,
       status: m.project.status,
+      isMonitored: m.project.isMonitored,
       updatedAt: m.project.updatedAt.toISOString(),
       role: m.role,
       teamSize: m.project.members.length,
@@ -274,6 +275,27 @@ export class ProjectService {
     return {
       id: updated.id,
       status: updated.status,
+      updatedAt: updated.updatedAt.toISOString()
+    };
+  }
+
+  async updateProjectMonitoring(projectId: string, userId: string, isMonitored: boolean) {
+    const member = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } }
+    });
+
+    if (!member || member.role !== Role.ADMIN_PROJECT) {
+      throw new ForbiddenException('Only project admins can update the project monitoring status.');
+    }
+
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: { isMonitored }
+    });
+
+    return {
+      id: updated.id,
+      isMonitored: updated.isMonitored,
       updatedAt: updated.updatedAt.toISOString()
     };
   }

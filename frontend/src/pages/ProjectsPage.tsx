@@ -4,9 +4,9 @@ import { DashboardLayout } from '../components/DashboardLayout';
 import { JoinProjectCard } from '../components/projects/JoinProjectCard';
 import { ProjectAdminPanel } from '../components/projects/ProjectAdminPanel';
 import { MemberDirectory } from '../components/projects/MemberDirectory';
-import { Users, ArrowLeft, Plus, X, Search, EyeOff, Eye } from 'lucide-react';
+import { Users, ArrowLeft, Plus, X, Search, EyeOff, Eye, Activity } from 'lucide-react';
 import { useProject, Project } from '../context/ProjectContext';
-import { createProject, getProjectMembers, updateProjectStatus } from '../api/projects';
+import { createProject, getProjectMembers, updateProjectStatus, updateProjectMonitoring } from '../api/projects';
 
 export const ProjectsPage: React.FC = () => {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
@@ -205,28 +205,46 @@ export const ProjectsPage: React.FC = () => {
                           }`}>
                           {proj.role}
                         </span>
-                        <div className="flex items-center space-x-3">
-                          <div className="flex items-center space-x-1.5 text-[#757575] dark:text-[#8D8D8D]">
-                            <Users size={14} />
-                            <span className="font-mono text-[10px]">{proj.teamSize}</span>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1.5 text-[#757575] dark:text-[#8D8D8D] border border-[#E0E0E0] dark:border-[#393939] px-2 py-1 rounded-[4px] bg-[#F4F4F4] dark:bg-[#121212]">
+                            <Users size={16} />
+                            <span className="font-mono text-[11px] font-semibold">{proj.teamSize}</span>
                           </div>
                           {proj.role === 'ADMIN_PROJECT' && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const newStatus = proj.status === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE';
-                                try {
-                                  await updateProjectStatus(proj.id, newStatus);
-                                  refreshProjects();
-                                } catch (err) {
-                                  console.error(err);
-                                }
-                              }}
-                              className="text-[#525252] dark:text-[#8D8D8D] hover:text-[#0F62FE] dark:hover:text-[#4589FF] transition-colors"
-                              title={proj.status === 'ACTIVE' ? "Hide/Archive Workspace" : "Unhide/Activate Workspace"}
-                            >
-                              {proj.status === 'ACTIVE' ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
+                            <>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const newMonitored = !proj.isMonitored;
+                                  try {
+                                    await updateProjectMonitoring(proj.id, newMonitored);
+                                    refreshProjects();
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                className={`p-1.5 border rounded-[4px] transition-all ${proj.isMonitored ? 'border-[#0F62FE] text-[#0F62FE] dark:border-[#4589FF] dark:text-[#4589FF] bg-[#0F62FE]/10' : 'border-[#E0E0E0] dark:border-[#393939] text-[#525252] dark:text-[#8D8D8D] hover:border-[#0F62FE] hover:text-[#0F62FE] dark:hover:border-[#4589FF] dark:hover:text-[#4589FF] bg-[#F4F4F4] dark:bg-[#121212] hover:bg-[#0F62FE]/5'}`}
+                                title={proj.isMonitored ? "Remove from Dashboard Monitoring" : "Add to Dashboard Monitoring"}
+                              >
+                                <Activity size={16} />
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const newStatus = proj.status === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE';
+                                  try {
+                                    await updateProjectStatus(proj.id, newStatus);
+                                    refreshProjects();
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                className="p-1.5 border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] text-[#525252] dark:text-[#8D8D8D] hover:border-[#0F62FE] hover:text-[#0F62FE] dark:hover:border-[#4589FF] dark:hover:text-[#4589FF] bg-[#F4F4F4] dark:bg-[#121212] hover:bg-[#0F62FE]/5 transition-all"
+                                title={proj.status === 'ACTIVE' ? "Hide/Archive Workspace" : "Unhide/Activate Workspace"}
+                              >
+                                {proj.status === 'ACTIVE' ? <Eye size={16} /> : <EyeOff size={16} />}
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>

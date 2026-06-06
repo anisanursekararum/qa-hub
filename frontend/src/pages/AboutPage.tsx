@@ -59,7 +59,7 @@ const AboutPage = () => {
 
           <div className="mt-8 text-center">
             <p className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D]">
-              QA-Hub Core v1.0.0 &copy; {new Date().getFullYear()}
+              QA-Hub v1.0.0 &copy; {new Date().getFullYear()}
             </p>
           </div>
         </div>
