@@ -9,7 +9,10 @@ export class DashboardService {
   async getSummary(userId: string) {
     // 1. Get user's projects
     const memberships = await this.prisma.projectMember.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        project: { isMonitored: true }
+      },
       select: { projectId: true },
     });
     const projectIds = memberships.map(m => m.projectId);
@@ -55,7 +58,6 @@ export class DashboardService {
           select: { members: true, testRuns: true }
         }
       },
-      take: 4,
       orderBy: { createdAt: 'desc' }
     });
 
@@ -67,10 +69,15 @@ export class DashboardService {
       runsCount: p._count.testRuns,
     }));
 
-    // 6. Activity Feed (latest updated TestRuns)
-    const recentActivities = await this.prisma.testRun.findMany({
-      where: { projectId: { in: projectIds } },
-      take: 5,
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // 6. Activity Feed (latest updated TestRuns and TestCases)
+    const recentActivityRuns = await this.prisma.testRun.findMany({
+      where: { 
+        projectId: { in: projectIds },
+        updatedAt: { gte: oneDayAgo }
+      },
+      take: 200,
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -82,18 +89,59 @@ export class DashboardService {
       }
     });
 
-    const activities = recentActivities.map(activity => ({
-      id: activity.id,
-      title: `Test Run: ${activity.name}`,
-      description: `Status updated to ${activity.status} in ${activity.project.name}`,
-      time: activity.updatedAt.toISOString(),
-      user: activity.initiatedBy?.name || 'System'
-    }));
+    const recentActivityCases = await this.prisma.testCase.findMany({
+      where: { 
+        projectId: { in: projectIds },
+        updatedAt: { gte: oneDayAgo }
+      },
+      take: 200,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        publicId: true,
+        title: true,
+        status: true,
+        updatedAt: true,
+        project: { select: { name: true } },
+        updatedBy: { select: { name: true } }
+      }
+    });
+
+    let activities: any[] = [];
+    
+    recentActivityRuns.forEach(run => {
+      activities.push({
+        id: `run-${run.id}`,
+        linkId: run.id,
+        type: 'TEST_RUN',
+        title: `Test Run: ${run.name}`,
+        description: `Status updated to ${run.status} in ${run.project.name}`,
+        time: run.updatedAt.toISOString(),
+        user: run.initiatedBy?.name || 'System'
+      });
+    });
+
+    recentActivityCases.forEach(tc => {
+      activities.push({
+        id: `case-${tc.id}`,
+        linkId: tc.publicId || tc.id,
+        type: 'TEST_CASE',
+        title: `Test Case: ${tc.title}`,
+        description: `Status updated to ${tc.status} in ${tc.project.name}`,
+        time: tc.updatedAt.toISOString(),
+        user: tc.updatedBy?.name || 'System'
+      });
+    });
+
+    // Sort descending by time
+    activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
     // 7. Performance Table Data (latest TestRuns with item counts)
     const recentRuns = await this.prisma.testRun.findMany({
-      where: { projectId: { in: projectIds } },
-      take: 5,
+      where: { 
+        projectId: { in: projectIds },
+        status: { not: RunStatus.ARCHIVED }
+      },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

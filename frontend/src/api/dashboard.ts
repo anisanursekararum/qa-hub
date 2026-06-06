@@ -28,6 +28,8 @@ export interface DashboardSummary {
     description: string;
     time: string;
     user: string;
+    type?: string;
+    linkId?: string;
   }[];
   performance: {
     id: string;

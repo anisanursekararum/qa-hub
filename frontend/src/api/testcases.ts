@@ -12,6 +12,7 @@ export interface TestCasePayload {
   hasAutomation: boolean;
   status?: 'DRAFT' | 'READY' | 'DEPRECATED';
   priority?: 'HIGH' | 'MEDIUM' | 'LOW';
+  notes?: string;
 }
 
 export interface TestCase {
@@ -27,6 +28,7 @@ export interface TestCase {
   hasAutomation: boolean;
   status: 'DRAFT' | 'READY' | 'DEPRECATED';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   createdBy: { name: string; email: string } | null;
@@ -79,6 +81,7 @@ export interface BulkTestCasePayload {
   hasAutomation: boolean;
   status: 'DRAFT' | 'READY' | 'DEPRECATED';
   priority?: 'HIGH' | 'MEDIUM' | 'LOW';
+  notes?: string;
 }
 
 export const importTestCases = async (projectId: string, fileName: string, items: BulkTestCasePayload[]): Promise<{ importedCount: number }> => {

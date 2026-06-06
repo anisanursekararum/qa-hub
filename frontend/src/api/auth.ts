@@ -21,5 +21,16 @@ export const authApi = {
       throw new Error(err.message || 'Failed to change password');
     }
     return res.json();
+  },
+  invalidateSessions: async (): Promise<{message: string}> => {
+    const res = await fetch(`${API_URL}/auth/invalidate-sessions`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'Failed to invalidate sessions');
+    }
+    return res.json();
   }
 };

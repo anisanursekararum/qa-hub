@@ -26,6 +26,26 @@ export const createProject = async (name: string, description: string) => {
   return res.json();
 };
 
+export const updateProjectStatus = async (projectId: string, status: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/status`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error('Failed to update project status');
+  return res.json();
+};
+
+export const updateProjectMonitoring = async (projectId: string, isMonitored: boolean) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/monitoring`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ isMonitored }),
+  });
+  if (!res.ok) throw new Error('Failed to update project monitoring status');
+  return res.json();
+};
+
 export const joinProject = async (joinCode: string) => {
   const res = await fetch(`${API_URL}/project/join`, {
     method: 'POST',
@@ -47,15 +67,40 @@ export const getProjectMembers = async (projectId: string) => {
   return res.json();
 };
 
-export const generateJoinCode = async (projectId: string, email: string) => {
+export const generateJoinCode = async (projectId: string, email: string): Promise<ProjectInvitation> => {
   const res = await fetch(`${API_URL}/project/${projectId}/join-code`, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify({ email }),
   });
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Failed to generate join code');
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to generate code');
+  }
+  return res.json();
+};
+
+export const updateProjectMemberRole = async (projectId: string, memberId: string, role: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/members/${memberId}/role`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to update member role');
+  }
+  return res.json();
+};
+
+export const removeProjectMember = async (projectId: string, memberId: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/members/${memberId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to remove member');
   }
   return res.json();
 };
@@ -83,5 +128,17 @@ export const getProjectInvitations = async (projectId: string, page: number = 1,
     cache: 'no-store',
   });
   if (!res.ok) throw new Error('Failed to fetch project invitations');
+  return res.json();
+};
+
+export const resendJoinCodeEmail = async (projectId: string, invitationId: string) => {
+  const res = await fetch(`${API_URL}/project/${projectId}/invitations/${invitationId}/resend`, {
+    method: 'POST',
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to resend invitation email');
+  }
   return res.json();
 };

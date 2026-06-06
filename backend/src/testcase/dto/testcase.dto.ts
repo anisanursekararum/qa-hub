@@ -28,13 +28,17 @@ export class CreateTestCaseDto {
   @IsOptional()
   @IsEnum(CasePriority)
   priority?: CasePriority;
-}
 
-export class UpdateTestCaseDto extends CreateTestCaseDto {
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
   @IsOptional()
   @IsEnum(CaseStatus)
   status?: CaseStatus;
 }
+
+export class UpdateTestCaseDto extends CreateTestCaseDto {}
 
 export class BulkImportItemDto {
   @IsNotEmpty()
@@ -71,6 +75,10 @@ export class BulkImportItemDto {
   @IsOptional()
   @IsEnum(CasePriority)
   priority?: CasePriority;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class BulkImportTestCaseDto {

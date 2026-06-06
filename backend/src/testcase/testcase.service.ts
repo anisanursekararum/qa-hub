@@ -37,6 +37,7 @@ export class TestcaseService {
         expectedResult: dto.expectedResult || null,
         hasAutomation: dto.hasAutomation,
         priority: dto.priority || 'MEDIUM',
+        notes: dto.notes || null,
         createdById: userId,
         updatedById: userId,
       },
@@ -80,6 +81,7 @@ export class TestcaseService {
         hasAutomation: dto.hasAutomation,
         status: dto.status,
         priority: dto.priority,
+        notes: dto.notes,
         updatedById: userId,
       },
       include: {
@@ -159,6 +161,7 @@ export class TestcaseService {
             hasAutomation: item.hasAutomation,
             status: 'DRAFT',
             priority: item.priority || 'MEDIUM',
+            notes: item.notes || null,
             createdById: userId,
             updatedById: userId,
           }

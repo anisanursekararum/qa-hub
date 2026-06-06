@@ -18,7 +18,7 @@ export interface TestRun {
   id: string;
   projectId: string;
   name: string;
-  status: 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE';
+  status: 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE' | 'ARCHIVED';
   createdAt: string;
   startedAt?: string;
   endedAt?: string;
@@ -75,6 +75,22 @@ export const testRunsApi = {
     });
     if (!res.ok) throw new Error('Failed to update status');
     return res.json();
+  },
+  updateEnvironment: async (id: string, environment: string): Promise<TestRun> => {
+    const res = await fetch(`${API_URL}/testrun/${id}/environment`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ environment })
+    });
+    if (!res.ok) throw new Error('Failed to update environment');
+    return res.json();
+  },
+  deleteRun: async (id: string): Promise<void> => {
+    const res = await fetch(`${API_URL}/testrun/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to delete run');
   },
   addItems: async (id: string, testCaseIds: string[]) => {
     const res = await fetch(`${API_URL}/testrun/${id}/items`, {

@@ -19,15 +19,15 @@ const TestRunDetailsPage = () => {
   const navigate = useNavigate();
   const { activeProject } = useProject();
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
-  
+
   const [run, setRun] = useState<TestRun | null>(null);
   const [allCases, setAllCases] = useState<TestCase[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
-  
+
+
   // Title editing state
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
@@ -44,9 +44,10 @@ const TestRunDetailsPage = () => {
   const [tableFilterProperty, setTableFilterProperty] = useState<FilterCondition['property']>('Status');
   const [tableFilterOperator, setTableFilterOperator] = useState<FilterCondition['operator']>('==');
   const [tableFilterValue, setTableFilterValue] = useState('DRAFT');
+  const [currentDuration, setCurrentDuration] = useState<string>('-');
 
   // Telemetry State
-  const [logs, setLogs] = useState<{timestamp: string, log: string}[]>([]);
+  const [logs, setLogs] = useState<{ timestamp: string, log: string }[]>([]);
   const socketRef = useRef<Socket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -81,12 +82,37 @@ const TestRunDetailsPage = () => {
     }
   }, [logs]);
 
+  // Duration Timer
+  useEffect(() => {
+    if (run?.status === 'IN_PROGRESS' || run?.status === 'AUTOMATION_RUNNING') {
+      const interval = setInterval(() => {
+        if (!run.startedAt) return;
+        const diffMs = Date.now() - new Date(run.startedAt).getTime();
+        const diffSecs = Math.floor(diffMs / 1000);
+        const h = Math.floor(diffSecs / 3600);
+        const m = Math.floor((diffSecs % 3600) / 60);
+        const s = diffSecs % 60;
+        setCurrentDuration(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      }, 1000);
+      return () => clearInterval(interval);
+    } else if (run?.endedAt && run?.startedAt) {
+      const diffMs = new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime();
+      const diffSecs = Math.floor(diffMs / 1000);
+      const h = Math.floor(diffSecs / 3600);
+      const m = Math.floor((diffSecs % 3600) / 60);
+      const s = diffSecs % 60;
+      setCurrentDuration(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+    } else {
+      setCurrentDuration('-');
+    }
+  }, [run?.status, run?.startedAt, run?.endedAt]);
+
   // WebSocket Connection
   useEffect(() => {
     if (run?.status === 'AUTOMATION_RUNNING' && !socketRef.current) {
       const socket = io('http://localhost:3000');
       socketRef.current = socket;
-      
+
       socket.on(`run_status_${run.id}`, (data: { status: TestRun['status'] }) => {
         setRun(prev => prev ? { ...prev, status: data.status } : null);
         if (data.status !== 'AUTOMATION_RUNNING') {
@@ -94,19 +120,19 @@ const TestRunDetailsPage = () => {
           socketRef.current = null;
         }
       });
-      
+
       socket.on(`item_status_${run.id}`, (data: { testCaseId: string, executionStatus: any, notes?: string }) => {
         setRun(prev => {
           if (!prev || !prev.items) return prev;
-          const newItems = prev.items.map(item => 
-            item.testCaseId === data.testCaseId 
+          const newItems = prev.items.map(item =>
+            item.testCaseId === data.testCaseId
               ? { ...item, executionStatus: data.executionStatus, notes: data.notes }
               : item
           );
           return { ...prev, items: newItems };
         });
       });
-      
+
       socket.on(`telemetry_${run.id}`, (data: { timestamp: string, log: string }) => {
         setLogs(prev => [...prev, data]);
       });
@@ -180,7 +206,7 @@ const TestRunDetailsPage = () => {
       const updated = await testRunsApi.updateItemStatus(runId!, testCaseId, executionStatus);
       setRun(prev => {
         if (!prev || !prev.items) return prev;
-        const newItems = prev.items.map(item => 
+        const newItems = prev.items.map(item =>
           item.testCaseId === testCaseId ? { ...item, executionStatus: updated.executionStatus } : item
         );
         return { ...prev, items: newItems };
@@ -214,7 +240,7 @@ const TestRunDetailsPage = () => {
 
   // Calculate Metrics
   const getFilterOptions = (prop: string) => {
-    if (prop === 'Status') return [{v: 'DRAFT', l: 'DRAFT'}, {v: 'READY', l: 'READY'}, {v: 'DEPRECATED', l: 'DEPRECATED'}];
+    if (prop === 'Status') return [{ v: 'DRAFT', l: 'DRAFT' }, { v: 'READY', l: 'READY' }, { v: 'DEPRECATED', l: 'DEPRECATED' }];
     if (prop === 'Module') {
       const allModules = Array.from(new Set(allCases.map(c => c.moduleId).filter(Boolean)));
       return allModules.map(id => {
@@ -222,8 +248,8 @@ const TestRunDetailsPage = () => {
         return { v: id, l: tc?.module?.name || id };
       });
     }
-    if (prop === 'Automation') return [{v: 'MANUAL', l: 'MANUAL'}, {v: 'AUTOMATED', l: 'AUTOMATED'}, {v: 'FLAKY', l: 'FLAKY'}];
-    if (prop === 'Priority') return [{v: 'HIGH', l: 'HIGH'}, {v: 'MEDIUM', l: 'MEDIUM'}, {v: 'LOW', l: 'LOW'}];
+    if (prop === 'Automation') return [{ v: 'MANUAL', l: 'MANUAL' }, { v: 'AUTOMATED', l: 'AUTOMATED' }, { v: 'FLAKY', l: 'FLAKY' }];
+    if (prop === 'Priority') return [{ v: 'HIGH', l: 'HIGH' }, { v: 'MEDIUM', l: 'MEDIUM' }, { v: 'LOW', l: 'LOW' }];
     return [];
   };
 
@@ -241,7 +267,7 @@ const TestRunDetailsPage = () => {
         else if (f.property === 'Module') match = tc.moduleId === f.value;
         else if (f.property === 'Automation') match = (tc.hasAutomation ? 'AUTOMATED' : 'MANUAL') === f.value;
         else if (f.property === 'Priority') match = tc.priority === f.value;
-        
+
         const conditionMet = f.operator === '==' ? match : !match;
         if (!conditionMet) return false;
       }
@@ -255,16 +281,16 @@ const TestRunDetailsPage = () => {
   const todoItems = run.items?.filter(i => i.executionStatus === 'TO_DO').length || 0;
   const completedItems = passedItems + failedItems;
   const progressPercent = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
-  
+
   const uniqueModules = new Set(run.items?.map(i => i.testCase?.moduleId).filter(Boolean));
   const modulesCount = uniqueModules.size;
-  
+
   // Exclude cases already in run for the Add Modal
   const existingCaseIds = new Set(run.items?.map(i => i.testCaseId));
   const availableCases = allCases.filter(c => !existingCaseIds.has(c.id));
-  
+
   const filteredAvailableCases = executeFilters(availableCases, modalFilters, modalSearchQuery);
-  
+
   const casesByModule = filteredAvailableCases.reduce((acc, tc) => {
     const modName = tc.module?.name || 'Unassigned';
     if (!acc[modName]) acc[modName] = [];
@@ -272,11 +298,11 @@ const TestRunDetailsPage = () => {
     return acc;
   }, {} as Record<string, TestCase[]>);
 
-  const populatedRunItems = (run.items || []).map(item => ({ 
-    ...item.testCase, 
-    executionStatus: item.executionStatus, 
-    notes: item.notes, 
-    testCaseId: item.testCaseId 
+  const populatedRunItems = (run.items || []).map(item => ({
+    ...item.testCase,
+    executionStatus: item.executionStatus,
+    notes: item.notes,
+    testCaseId: item.testCaseId
   }));
   const filteredRunItems = executeFilters(populatedRunItems as TestCase[], tableFilters, tableSearchQuery);
   const runItemsByModule = filteredRunItems.reduce((acc, item) => {
@@ -302,7 +328,7 @@ const TestRunDetailsPage = () => {
                     <span className="text-3xl font-sans font-black tracking-tight text-[#757575] dark:text-[#A8A8A8] mr-2">
                       {run.name.split(' - ')[0]} -
                     </span>
-                    <input 
+                    <input
                       autoFocus
                       type="text"
                       className="text-3xl font-sans font-black tracking-tight text-[#161616] dark:text-white bg-transparent border-b-2 border-[#0F62FE] outline-none flex-1 min-w-[300px]"
@@ -316,7 +342,7 @@ const TestRunDetailsPage = () => {
                     />
                   </div>
                 ) : (
-                  <h1 
+                  <h1
                     className={`text-3xl font-sans font-black tracking-tight text-[#161616] dark:text-white mb-2 w-fit ${run.status === 'DRAFT' ? 'cursor-pointer hover:text-[#0F62FE] transition-colors border-b-2 border-transparent hover:border-dashed hover:border-[#0F62FE]' : ''}`}
                     onClick={() => {
                       if (run.status === 'DRAFT') {
@@ -330,7 +356,6 @@ const TestRunDetailsPage = () => {
                   </h1>
                 )}
                 <div className="flex items-center space-x-3">
-                  <span className="font-mono text-sm bg-[#E0E0E0] dark:bg-[#393939] text-[#161616] dark:text-white px-2 py-1 rounded-[2px]">{run.id.split('-').slice(0,3).join('-')}</span>
                   <span className="text-[#525252] dark:text-[#A8A8A8] text-sm">Created {new Date(run.createdAt).toLocaleString()}</span>
                 </div>
               </div>
@@ -378,15 +403,37 @@ const TestRunDetailsPage = () => {
             <div>
               <div className="text-xs font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Duration</div>
               <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white">
-                {run.startedAt ? (run.endedAt ? 'Finished' : 'Ongoing') : '-'}
+                {currentDuration}
               </div>
             </div>
             <div className="w-px h-8 bg-[#E0E0E0] dark:bg-[#393939]"></div>
             <div>
               <div className="text-xs font-mono text-[#757575] dark:text-[#8D8D8D] uppercase tracking-wider mb-1">Environment</div>
-              <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white">
-                {run.environment || '-'}
-              </div>
+              {run.status === 'DRAFT' ? (
+                <select
+                  value={run.environment || ''}
+                  onChange={async (e) => {
+                    const newEnv = e.target.value;
+                    try {
+                      await testRunsApi.updateEnvironment(run.id, newEnv);
+                      setRun(prev => prev ? { ...prev, environment: newEnv } : null);
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className="font-sans text-sm font-semibold text-[#161616] dark:text-white bg-transparent border-b border-dashed border-[#0F62FE] focus:outline-none cursor-pointer"
+                >
+                  <option value="">Select Env</option>
+                  <option value="Development">Development</option>
+                  <option value="Staging">Staging</option>
+                  <option value="UAT">UAT</option>
+                  <option value="Production">Production</option>
+                </select>
+              ) : (
+                <div className="font-sans text-sm font-semibold text-[#161616] dark:text-white">
+                  {run.environment || '-'}
+                </div>
+              )}
             </div>
             <div className="w-px h-8 bg-[#E0E0E0] dark:bg-[#393939]"></div>
             <div>
@@ -466,7 +513,7 @@ const TestRunDetailsPage = () => {
                 </span>
               )}
             </div>
-            
+
             <div className="p-4 border-b border-[#E0E0E0] dark:border-[#393939] bg-white dark:bg-[#1C1C21]">
               <div className="flex flex-col md:flex-row gap-4 items-center bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] p-2 rounded-[4px]">
                 <div className="flex-1 flex items-center bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-1.5 w-full md:w-auto">
@@ -502,14 +549,14 @@ const TestRunDetailsPage = () => {
                     if (!tableFilterValue) return;
                     if (tableFilters.some(f => f.property === tableFilterProperty && f.operator === tableFilterOperator && f.value === tableFilterValue)) return;
                     setTableFilters([...tableFilters, { id: Math.random().toString(36).substr(2, 9), property: tableFilterProperty, operator: tableFilterOperator, value: tableFilterValue }]);
-                  }} className="bg-[#0F62FE] hover:bg-[#0353E9] text-white p-1.5 rounded-[2px] transition-colors"><Plus size={16}/></button>
+                  }} className="bg-[#0F62FE] hover:bg-[#0353E9] text-white p-1.5 rounded-[2px] transition-colors"><Plus size={16} /></button>
                 </div>
               </div>
               {tableFilters.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {tableFilters.map(f => (
                     <div key={f.id} className="flex items-center bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-2 py-1">
-                      <span className="text-sm text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any)=>o.v===f.value)?.l || f.value : f.value}</span>
+                      <span className="text-sm text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any) => o.v === f.value)?.l || f.value : f.value}</span>
                       <button onClick={() => setTableFilters(tableFilters.filter(ff => ff.id !== f.id))} className="text-[#A8A8A8] hover:text-[#DA1E28]"><X size={14} /></button>
                     </div>
                   ))}
@@ -552,20 +599,19 @@ const TestRunDetailsPage = () => {
                               <div className="font-sans text-sm text-[#161616] dark:text-white line-clamp-1">{item.title}</div>
                             </td>
                             <td className="px-4 py-3">
-                              {item.hasAutomation ? 
-                                <span className="font-mono text-xs text-[#8A3FFC] border border-[#8A3FFC]/30 px-1.5 py-0.5 rounded-[2px] font-bold flex items-center w-max"><Bot size={10} className="mr-1"/>AUTO</span> : 
+                              {item.hasAutomation ?
+                                <span className="font-mono text-xs text-[#8A3FFC] border border-[#8A3FFC]/30 px-1.5 py-0.5 rounded-[2px] font-bold flex items-center w-max"><Bot size={10} className="mr-1" />AUTO</span> :
                                 <span className="font-mono text-xs text-[#525252] border border-[#525252]/50 px-1.5 py-0.5 rounded-[2px] font-bold">MANUAL</span>}
                             </td>
                             <td className="px-4 py-3">
-                              <select 
+                              <select
                                 value={item.executionStatus}
                                 disabled={run.status !== 'IN_PROGRESS'}
                                 onChange={(e) => handleItemExecutionUpdate(item.testCaseId, e.target.value)}
-                                className={`font-sans text-sm font-bold px-2 py-1 rounded-[2px] border focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed ${
-                                  item.executionStatus === 'TO_DO' ? 'bg-[#F4F4F4] dark:bg-[#393939] border-[#CCCCCC] dark:border-[#525252] text-[#525252] dark:text-[#A8A8A8]' :
+                                className={`font-sans text-sm font-bold px-2 py-1 rounded-[2px] border focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed ${item.executionStatus === 'TO_DO' ? 'bg-[#F4F4F4] dark:bg-[#393939] border-[#CCCCCC] dark:border-[#525252] text-[#525252] dark:text-[#A8A8A8]' :
                                   item.executionStatus === 'PASSED' ? 'bg-[#24A148]/10 border-[#24A148]/30 text-[#24A148]' :
-                                  'bg-[#DA1E28]/10 border-[#DA1E28]/30 text-[#DA1E28]'
-                                }`}
+                                    'bg-[#DA1E28]/10 border-[#DA1E28]/30 text-[#DA1E28]'
+                                  }`}
                               >
                                 <option value="TO_DO">TO DO</option>
                                 <option value="PASSED">PASSED</option>
@@ -601,7 +647,7 @@ const TestRunDetailsPage = () => {
             <div className="bg-[#161616] border border-[#393939] rounded-[4px] shadow-sm mb-6 flex flex-col">
               <div className="p-3 border-b border-[#393939] bg-[#000000] flex justify-between items-center">
                 <h2 className="font-mono font-bold text-sm text-[#0F62FE] flex items-center">
-                  <Terminal size={14} className="mr-2" /> 
+                  <Terminal size={14} className="mr-2" />
                   TELEMETRY STREAM // {run.id}
                 </h2>
                 <div className="flex space-x-1">
@@ -636,7 +682,7 @@ const TestRunDetailsPage = () => {
                   <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">Repository Scope</h3>
                   <div className="font-sans text-sm font-semibold text-[#0F62FE]">{selectedToAdd.size} selected</div>
                 </div>
-                
+
                 <div className="p-4 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-white dark:bg-[#1C1C21]">
                   <div className="flex flex-col md:flex-row gap-4 items-center bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] p-2 rounded-[4px]">
                     <div className="flex-1 flex items-center bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-1.5 w-full md:w-auto">
@@ -672,21 +718,21 @@ const TestRunDetailsPage = () => {
                         if (!modalFilterValue) return;
                         if (modalFilters.some(f => f.property === modalFilterProperty && f.operator === modalFilterOperator && f.value === modalFilterValue)) return;
                         setModalFilters([...modalFilters, { id: Math.random().toString(36).substr(2, 9), property: modalFilterProperty, operator: modalFilterOperator, value: modalFilterValue }]);
-                      }} className="bg-[#0F62FE] hover:bg-[#0353E9] text-white p-1.5 rounded-[2px] transition-colors"><Plus size={16}/></button>
+                      }} className="bg-[#0F62FE] hover:bg-[#0353E9] text-white p-1.5 rounded-[2px] transition-colors"><Plus size={16} /></button>
                     </div>
                   </div>
                   {modalFilters.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3">
                       {modalFilters.map(f => (
                         <div key={f.id} className="flex items-center bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-2 py-1">
-                          <span className="text-sm text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any)=>o.v===f.value)?.l || f.value : f.value}</span>
+                          <span className="text-sm text-[#161616] dark:text-[#E0E0E0] font-sans font-semibold mr-2">{f.property} <span className="font-mono text-[#0F62FE]">{f.operator}</span> {f.property === 'Module' ? getFilterOptions('Module').find((o: any) => o.v === f.value)?.l || f.value : f.value}</span>
                           <button onClick={() => setModalFilters(modalFilters.filter(ff => ff.id !== f.id))} className="text-[#A8A8A8] hover:text-[#DA1E28]"><X size={14} /></button>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto p-4 bg-[#F4F4F4] dark:bg-[#121212]">
                   <div className="space-y-6">
                     {Object.keys(casesByModule).length === 0 ? (
@@ -721,7 +767,7 @@ const TestRunDetailsPage = () => {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="p-4 border-t border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] flex justify-end space-x-3">
                   <button onClick={() => { setIsAddModalOpen(false); setSelectedToAdd(new Set()); }} className="px-4 py-2 font-sans font-semibold text-sm text-[#161616] dark:text-white hover:bg-[#E0E0E0] dark:hover:bg-[#393939] rounded-[4px] transition-colors">Cancel</button>
                   <button onClick={handleAddItems} disabled={selectedToAdd.size === 0} className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] disabled:opacity-50 disabled:cursor-not-allowed rounded-[4px] transition-colors shadow-sm">

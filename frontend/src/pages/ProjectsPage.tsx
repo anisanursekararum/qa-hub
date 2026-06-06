@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { JoinProjectCard } from '../components/projects/JoinProjectCard';
 import { ProjectAdminPanel } from '../components/projects/ProjectAdminPanel';
 import { MemberDirectory } from '../components/projects/MemberDirectory';
-import { Users, ArrowLeft, Plus, X } from 'lucide-react';
+import { Users, ArrowLeft, Plus, X, Search, EyeOff, Eye, Activity } from 'lucide-react';
 import { useProject, Project } from '../context/ProjectContext';
-import { createProject, getProjectMembers } from '../api/projects';
+import { createProject, getProjectMembers, updateProjectStatus, updateProjectMonitoring } from '../api/projects';
 
 export const ProjectsPage: React.FC = () => {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
@@ -15,10 +15,21 @@ export const ProjectsPage: React.FC = () => {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { availableProjects, refreshProjects } = useProject();
   const [members, setMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(4);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
+
+  const filteredProjects = availableProjects.filter(p => {
+    const matchesStatus = p.status === filterStatus;
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          p.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -28,6 +39,13 @@ export const ProjectsPage: React.FC = () => {
       setUser(JSON.parse(storedUser));
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (location.state?.projectId && availableProjects.length > 0) {
+      const proj = availableProjects.find(p => p.id === location.state.projectId);
+      if (proj) setSelectedProject(proj);
+    }
+  }, [location.state, availableProjects]);
 
   useEffect(() => {
     if (selectedProject) {
@@ -143,11 +161,38 @@ export const ProjectsPage: React.FC = () => {
               </button>
             </div>
 
+            <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center bg-[#F4F4F4] dark:bg-[#1C1C21] p-3 rounded-[4px] border border-[#E0E0E0] dark:border-[#2D2D39]">
+              <div className="relative w-full sm:w-64">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#757575] dark:text-[#8D8D8D]" />
+                <input 
+                  type="text" 
+                  placeholder="Search workspaces..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] pl-9 pr-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] transition-colors"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => setFilterStatus('ACTIVE')}
+                  className={`px-4 py-1.5 font-sans text-sm font-semibold rounded-[4px] transition-colors ${filterStatus === 'ACTIVE' ? 'bg-[#0F62FE] text-white' : 'bg-transparent text-[#525252] dark:text-[#A8A8A8] hover:bg-[#E0E0E0] dark:hover:bg-[#393939]'}`}
+                >
+                  Active
+                </button>
+                <button 
+                  onClick={() => setFilterStatus('ARCHIVED')}
+                  className={`px-4 py-1.5 font-sans text-sm font-semibold rounded-[4px] transition-colors ${filterStatus === 'ARCHIVED' ? 'bg-[#0F62FE] text-white' : 'bg-transparent text-[#525252] dark:text-[#A8A8A8] hover:bg-[#E0E0E0] dark:hover:bg-[#393939]'}`}
+                >
+                  Archived
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-col lg:flex-row gap-8 items-start">
               {/* Project Grid */}
               <div className="flex-1 w-full">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {availableProjects.map(proj => (
+                  {filteredProjects.slice(0, visibleCount).map(proj => (
                     <div
                       key={proj.id}
                       onClick={() => setSelectedProject(proj)}
@@ -160,9 +205,47 @@ export const ProjectsPage: React.FC = () => {
                           }`}>
                           {proj.role}
                         </span>
-                        <div className="flex items-center space-x-1.5 text-[#757575] dark:text-[#8D8D8D]">
-                          <Users size={14} />
-                          <span className="font-mono text-[10px]">{proj.teamSize}</span>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1.5 text-[#757575] dark:text-[#8D8D8D] border border-[#E0E0E0] dark:border-[#393939] px-2 py-1 rounded-[4px] bg-[#F4F4F4] dark:bg-[#121212]">
+                            <Users size={16} />
+                            <span className="font-mono text-[11px] font-semibold">{proj.teamSize}</span>
+                          </div>
+                          {proj.role === 'ADMIN_PROJECT' && (
+                            <>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const newMonitored = !proj.isMonitored;
+                                  try {
+                                    await updateProjectMonitoring(proj.id, newMonitored);
+                                    refreshProjects();
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                className={`p-1.5 border rounded-[4px] transition-all ${proj.isMonitored ? 'border-[#0F62FE] text-[#0F62FE] dark:border-[#4589FF] dark:text-[#4589FF] bg-[#0F62FE]/10' : 'border-[#E0E0E0] dark:border-[#393939] text-[#525252] dark:text-[#8D8D8D] hover:border-[#0F62FE] hover:text-[#0F62FE] dark:hover:border-[#4589FF] dark:hover:text-[#4589FF] bg-[#F4F4F4] dark:bg-[#121212] hover:bg-[#0F62FE]/5'}`}
+                                title={proj.isMonitored ? "Remove from Dashboard Monitoring" : "Add to Dashboard Monitoring"}
+                              >
+                                <Activity size={16} />
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const newStatus = proj.status === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE';
+                                  try {
+                                    await updateProjectStatus(proj.id, newStatus);
+                                    refreshProjects();
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                className="p-1.5 border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] text-[#525252] dark:text-[#8D8D8D] hover:border-[#0F62FE] hover:text-[#0F62FE] dark:hover:border-[#4589FF] dark:hover:text-[#4589FF] bg-[#F4F4F4] dark:bg-[#121212] hover:bg-[#0F62FE]/5 transition-all"
+                                title={proj.status === 'ACTIVE' ? "Hide/Archive Workspace" : "Unhide/Activate Workspace"}
+                              >
+                                {proj.status === 'ACTIVE' ? <Eye size={16} /> : <EyeOff size={16} />}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -171,6 +254,16 @@ export const ProjectsPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                {filteredProjects.length > visibleCount && (
+                  <div className="mt-6 flex justify-center">
+                    <button 
+                      onClick={() => setVisibleCount(c => c + 4)}
+                      className="font-sans font-semibold text-sm text-[#0F62FE] hover:text-[#0353E9] transition-colors px-6 py-2 border border-[#0F62FE] rounded-[4px]"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Join Section */}
@@ -211,7 +304,19 @@ export const ProjectsPage: React.FC = () => {
             {isLoadingMembers ? (
               <div className="text-sm text-[#525252] dark:text-[#A8A8A8]">Loading members...</div>
             ) : selectedProject.role === 'ADMIN_PROJECT' ? (
-              <ProjectAdminPanel members={members} projectId={selectedProject.id} />
+              <ProjectAdminPanel 
+                members={members} 
+                projectId={selectedProject.id} 
+                onMembersChange={() => {
+                  setIsLoadingMembers(true);
+                  import('../api/projects').then(({ getProjectMembers }) => {
+                    getProjectMembers(selectedProject.id)
+                      .then(setMembers)
+                      .catch(console.error)
+                      .finally(() => setIsLoadingMembers(false));
+                  });
+                }}
+              />
             ) : (
               <MemberDirectory members={members} />
             )}

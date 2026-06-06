@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../components/DashboardLayout';
+import { ProjectSwitcher } from '../components/ProjectSwitcher';
 import { useProject } from '../context/ProjectContext';
 import {
   FilePlus, Upload, Sparkles, Filter, CheckCircle2, Clock,
@@ -23,6 +24,7 @@ export const RepositoryPage: React.FC = () => {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const { activeProject } = useProject();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [modules, setModules] = useState<ProjectModule[]>([]);
   const [cases, setCases] = useState<TestCase[]>([]);
@@ -42,6 +44,12 @@ export const RepositoryPage: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filters]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('search');
+    if (q) setSearchQuery(q);
+  }, [location.search]);
 
   // Modals state
   const [isCaseModalOpen, setIsCaseModalOpen] = useState(false);
@@ -75,7 +83,8 @@ export const RepositoryPage: React.FC = () => {
     steps: '',
     expectedResult: '',
     hasAutomation: false,
-    priority: 'MEDIUM' as 'HIGH' | 'MEDIUM' | 'LOW'
+    priority: 'MEDIUM' as 'HIGH' | 'MEDIUM' | 'LOW',
+    notes: ''
   });
 
   useEffect(() => {
@@ -139,7 +148,9 @@ export const RepositoryPage: React.FC = () => {
 
     Papa.parse(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: 'greedy',
+      quoteChar: '"',
+      escapeChar: '"',
       complete: (results) => {
         try {
           const items: BulkTestCasePayload[] = results.data.map((row: any) => ({
@@ -149,6 +160,7 @@ export const RepositoryPage: React.FC = () => {
             prerequisite: row['Prerequisite'] || undefined,
             steps: row['Steps'] || 'No steps provided',
             expectedResult: row['Expected Result'] || undefined,
+            notes: row['Notes'] || undefined,
             hasAutomation: String(row['Has Automation']).toUpperCase() === 'TRUE',
             status: 'DRAFT',
             priority: ['HIGH', 'MEDIUM', 'LOW'].includes(String(row['Priority']).toUpperCase())
@@ -206,7 +218,8 @@ export const RepositoryPage: React.FC = () => {
       steps: '',
       expectedResult: '',
       hasAutomation: false,
-      priority: 'MEDIUM'
+      priority: 'MEDIUM',
+      notes: ''
     });
     setIsNewModuleMode(false);
     setIsViewOnlyMode(false);
@@ -232,7 +245,8 @@ export const RepositoryPage: React.FC = () => {
       steps: stepsStr,
       expectedResult: tc.expectedResult || '',
       hasAutomation: tc.hasAutomation,
-      priority: tc.priority || 'MEDIUM'
+      priority: tc.priority || 'MEDIUM',
+      notes: tc.notes || ''
     });
     setIsNewModuleMode(false);
     setIsViewOnlyMode(isView);
@@ -265,7 +279,8 @@ export const RepositoryPage: React.FC = () => {
         expectedResult: formData.expectedResult || undefined,
         hasAutomation: formData.hasAutomation,
         priority: formData.priority,
-        status: submitStatus
+        status: submitStatus,
+        notes: formData.notes || undefined
       };
 
       if (editingId) {
@@ -321,7 +336,8 @@ export const RepositoryPage: React.FC = () => {
               expectedResult: tc.expectedResult || undefined,
               hasAutomation: tc.hasAutomation,
               priority: tc.priority,
-              status
+              status,
+              notes: tc.notes || undefined
             });
           }
         })
@@ -490,8 +506,8 @@ export const RepositoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5">Prerequisite</label>
-                  <textarea value={formData.prerequisite} readOnly={isViewOnlyMode} onChange={e => setFormData({ ...formData, prerequisite: e.target.value })} placeholder="Any required state before executing (e.g., User must be logged in)" rows={2} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
+                  <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5">Prerequisite *</label>
+                  <textarea value={formData.prerequisite} required readOnly={isViewOnlyMode} onChange={e => setFormData({ ...formData, prerequisite: e.target.value })} placeholder="Any required state before executing (e.g., User must be logged in)" rows={2} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
                 </div>
 
                 {/* Priority Selection */}
@@ -516,13 +532,19 @@ export const RepositoryPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5">Expected Result</label>
-                    <textarea value={formData.expectedResult} readOnly={isViewOnlyMode} onChange={e => setFormData({ ...formData, expectedResult: e.target.value })} placeholder="System should display success modal..." rows={4} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
+                    <textarea value={formData.expectedResult} readOnly={isViewOnlyMode} onChange={e => setFormData({ ...formData, expectedResult: e.target.value })} placeholder="System should display success modal..." rows={4} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-3 pt-2">
                   <input type="checkbox" id="hasAutomation" disabled={isViewOnlyMode} checked={formData.hasAutomation} onChange={e => setFormData({ ...formData, hasAutomation: e.target.checked })} className="w-4 h-4 text-[#0F62FE] bg-[#F4F4F4] dark:bg-[#121212] border-gray-300 rounded disabled:opacity-50" />
                   <label htmlFor="hasAutomation" className="font-sans text-sm text-[#161616] dark:text-white font-semibold">Automated script available</label>
+                </div>
+
+                {/* Notes Section */}
+                <div>
+                  <label className="block font-sans text-sm font-semibold text-[#161616] dark:text-white mb-1.5">Notes</label>
+                  <textarea value={formData.notes} readOnly={isViewOnlyMode} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Additional context..." rows={2} className="w-full bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-2 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE] resize-none read-only:cursor-default" />
                 </div>
 
                 {/* History Section */}
@@ -698,14 +720,18 @@ export const RepositoryPage: React.FC = () => {
               <AlertCircle size={24} className="text-[#0F62FE]" />
             </div>
             <h2 className="font-sans font-bold text-2xl text-[#161616] dark:text-white mb-2">No Workspace Selected</h2>
+            <div className="mt-4"><ProjectSwitcher /></div>
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="mb-8">
-              <h1 className="font-sans font-black text-3xl text-[#161616] dark:text-white tracking-tight mb-2">Test Repository</h1>
-              <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8]">
-                Manage cases for <span className="font-bold">{activeProject.name}</span>.
-              </p>
+            <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <h1 className="font-sans font-black text-3xl text-[#161616] dark:text-white tracking-tight mb-2">Test Repository</h1>
+                <p className="font-sans text-sm text-[#525252] dark:text-[#A8A8A8]">
+                  Manage cases for <span className="font-bold">{activeProject.name}</span>.
+                </p>
+              </div>
+              <ProjectSwitcher />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -717,9 +743,9 @@ export const RepositoryPage: React.FC = () => {
                 <div className="w-10 h-10 bg-[#F4F4F4] dark:bg-[#121212] flex items-center justify-center rounded-[4px] mr-4"><Upload size={20} className="text-black dark:text-white" /></div>
                 <div className="text-left"><h3 className="font-bold text-sm mb-1 text-black dark:text-white">Bulk CSV Import</h3><p className="text-sm text-[#757575] dark:text-[#8D8D8D]">Import legacy cases.</p></div>
               </button>
-              <button className="flex items-start p-5 bg-[#1C1C21] dark:bg-[#121212] border-2 border-dashed border-[#8A3FFC]/50 rounded-[4px] group">
+              <button className="flex items-start p-5 bg-[#F6F2FF] dark:bg-[#121212] border-2 border-dashed border-[#8A3FFC]/50 rounded-[4px] group hover:border-[#8A3FFC] transition-colors">
                 <div className="w-10 h-10 bg-[#8A3FFC]/10 flex items-center justify-center rounded-[4px] mr-4"><Sparkles size={20} className="text-[#8A3FFC]" /></div>
-                <div className="text-left"><h3 className="font-bold text-sm text-white mb-1">AI PRD Ingestion</h3><p className="text-sm text-[#757575] dark:text-[#8D8D8D]">Upload your PRD in PDF format here.</p></div>
+                <div className="text-left"><h3 className="font-bold text-sm text-[#8A3FFC] dark:text-white mb-1">AI PRD Ingestion</h3><p className="text-sm text-[#525252] dark:text-[#8D8D8D]">Upload your PRD in PDF format here.</p></div>
               </button>
             </div>
 

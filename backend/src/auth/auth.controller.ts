@@ -30,4 +30,10 @@ export class AuthController {
   async changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(req.user.userId, dto);
   }
+
+  @Post('invalidate-sessions')
+  @UseGuards(JwtAuthGuard)
+  async invalidateSessions(@Req() req: any) {
+    return this.authService.invalidateSessions(req.user.userId);
+  }
 }

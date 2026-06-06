@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JoinProjectDto, CreateProjectDto, GenerateJoinCodeDto, CreateProjectModuleDto } from './dto/project.dto';
@@ -18,9 +18,29 @@ export class ProjectController {
     return this.projectService.createProject(req.user.userId, dto);
   }
 
+  @Put(':id/status')
+  async updateProjectStatus(@Request() req: any, @Param('id') projectId: string, @Body('status') status: string) {
+    return this.projectService.updateProjectStatus(projectId, req.user.userId, status);
+  }
+
+  @Put(':id/monitoring')
+  async updateProjectMonitoring(@Request() req: any, @Param('id') projectId: string, @Body('isMonitored') isMonitored: boolean) {
+    return this.projectService.updateProjectMonitoring(projectId, req.user.userId, isMonitored);
+  }
+
   @Get(':id/members')
   async getProjectMembers(@Request() req: any, @Param('id') projectId: string) {
     return this.projectService.getProjectMembers(projectId, req.user.userId);
+  }
+
+  @Put(':id/members/:memberId/role')
+  async updateMemberRole(@Request() req: any, @Param('id') projectId: string, @Param('memberId') memberId: string, @Body('role') role: string) {
+    return this.projectService.updateMemberRole(projectId, req.user.userId, memberId, role);
+  }
+
+  @Delete(':id/members/:memberId')
+  async removeMember(@Request() req: any, @Param('id') projectId: string, @Param('memberId') memberId: string) {
+    return this.projectService.removeMember(projectId, req.user.userId, memberId);
   }
 
   @Post(':id/join-code')
@@ -41,6 +61,11 @@ export class ProjectController {
   @Post('join')
   async joinProject(@Request() req: any, @Body() dto: JoinProjectDto) {
     return this.projectService.joinProjectWithCode(req.user.userId, dto);
+  }
+
+  @Post(':id/invitations/:invitationId/resend')
+  async resendInvitationEmail(@Request() req: any, @Param('id') projectId: string, @Param('invitationId') invitationId: string) {
+    return this.projectService.resendInvitationEmail(projectId, req.user.userId, invitationId);
   }
 
   @Get(':id/modules')

@@ -94,6 +94,19 @@ export class TestrunService {
     });
   }
 
+  async updateEnvironment(id: string, environment: string) {
+    return this.prisma.testRun.update({
+      where: { id },
+      data: { environment }
+    });
+  }
+
+  async deleteRun(id: string) {
+    return this.prisma.testRun.delete({
+      where: { id }
+    });
+  }
+
   async duplicate(projectId: string, dto: DuplicateTestRunDto, userId: string) {
     const sourceRun = await this.prisma.testRun.findUnique({
       where: { id: dto.sourceRunId },
@@ -157,7 +170,7 @@ export class TestrunService {
     return this.findOne(id);
   }
 
-  async updateStatus(id: string, status: 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE') {
+  async updateStatus(id: string, status: 'DRAFT' | 'IN_PROGRESS' | 'AUTOMATION_RUNNING' | 'DONE' | 'ARCHIVED') {
     const existing = await this.prisma.testRun.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Test run not found');
 
