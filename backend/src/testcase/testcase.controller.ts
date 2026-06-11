@@ -88,11 +88,8 @@ export class TestcaseController {
 
         const result = await this.aiTestGeneratorService.processPrdChunk(projectId, req.user.userId, chunk);
 
-        if (result.action === 'NEW') {
-          newCount++;
-        } else if (result.action === 'MODIFIED') {
-          modifiedCount++;
-        }
+        newCount += result.newCount || 0;
+        modifiedCount += result.modifiedCount || 0;
 
         results.push({ chunk: chunk.substring(0, 100) + '...', ...result });
       }

@@ -31,8 +31,12 @@ export class PdfParserService {
     // Regular expressions to detect headers/markers:
     // 1. Markdown headers: # Header, ## Subheader, etc.
     // 2. Section/Feature/User Story markers: e.g., "Feature: ...", "User Story: ...", "Scenario: ...", "Bab [0-9]: ...", "Chapter [0-9]: ...", "Module: ..."
+    // 3. Numbered sections, Epics, and functional requirements (FR-X.Y)
     const markdownHeaderRegex = /^#{1,6}\s+(.+)$/;
     const keywordHeaderRegex = /^(Feature|User\s+Story|Scenario|Bab|Chapter|Module)\s*(\d*)\s*:\s*(.+)$/i;
+    const numberedSectionRegex = /^\d+\.\s+(.+)$/;
+    const epicRegex = /^Epic\s*\d+\s*:/i;
+    const requirementRegex = /^\s*FR-\d+\.\d+/i;
 
     for (const line of lines) {
       const trimmedLine = line.trim();
@@ -40,8 +44,11 @@ export class PdfParserService {
       // Check if the line is a header
       const isMarkdownHeader = markdownHeaderRegex.test(trimmedLine);
       const isKeywordHeader = keywordHeaderRegex.test(trimmedLine);
+      const isNumberedSection = numberedSectionRegex.test(trimmedLine);
+      const isEpic = epicRegex.test(trimmedLine);
+      const isRequirement = requirementRegex.test(trimmedLine);
 
-      if (isMarkdownHeader || isKeywordHeader) {
+      if (isMarkdownHeader || isKeywordHeader || isNumberedSection || isEpic || isRequirement) {
         // If we have accumulated lines in the current chunk, save it
         if (currentChunkLines.length > 0) {
           const chunkText = currentChunkLines.join('\n').trim();

@@ -10,16 +10,20 @@ const mockEmbedContent = jest.fn().mockResolvedValue({
 const mockGenerateContent = jest.fn().mockResolvedValue({
   response: {
     text: () => JSON.stringify({
-      status: 'NEW',
-      reason: 'New feature not covered by existing test cases.',
-      testCase: {
-        title: 'Verify new feature',
-        moduleName: 'User Management',
-        moduleCode: 'USER',
-        steps: '1. Click login',
-        expectedResult: 'Should login',
-        priority: 'HIGH'
-      }
+      actions: [
+        {
+          status: 'NEW',
+          reason: 'New feature not covered by existing test cases.',
+          testCase: {
+            title: 'Verify new feature',
+            moduleName: 'User Management',
+            moduleCode: 'USER',
+            steps: '1. Click login',
+            expectedResult: 'Should login',
+            priority: 'HIGH'
+          }
+        }
+      ]
     })
   }
 });
@@ -57,7 +61,8 @@ describe('AiTestGeneratorService', () => {
     },
     testCase: {
       create: jest.fn(),
-      update: jest.fn()
+      update: jest.fn(),
+      findUnique: jest.fn()
     }
   };
 
@@ -104,7 +109,7 @@ describe('AiTestGeneratorService', () => {
       const result = await service.processPrdChunk('project-1', 'user-1', 'As a user I want to edit my profile');
 
       expect(result.action).toBe('NEW');
-      expect(result.testCase?.title).toBe('Verify new feature');
+      expect(result.processedCases[0].testCase?.title).toBe('Verify new feature');
       expect(mockPrisma.testCase.create).toHaveBeenCalled();
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalled(); // to update embedding
     });
@@ -114,19 +119,25 @@ describe('AiTestGeneratorService', () => {
       
       // Mock closest testcase found
       mockPrisma.$queryRawUnsafe.mockResolvedValue([{ id: 'tc-old', title: 'Old testcase' }]);
+      mockPrisma.testCase.findUnique.mockResolvedValue({ id: 'tc-old', title: 'Old testcase' });
       mockGenerateContent.mockResolvedValueOnce({
         response: {
           text: () => JSON.stringify({
-            status: 'MODIFIED',
-            reason: 'Modified existing feature description.',
-            testCase: {
-              title: 'Updated title',
-              moduleName: 'User Management',
-              moduleCode: 'USER',
-              steps: 'Updated steps',
-              expectedResult: 'Updated expected',
-              priority: 'MEDIUM'
-            }
+            actions: [
+              {
+                status: 'MODIFIED',
+                closestTestCaseId: 'tc-old',
+                reason: 'Modified existing feature description.',
+                testCase: {
+                  title: 'Updated title',
+                  moduleName: 'User Management',
+                  moduleCode: 'USER',
+                  steps: 'Updated steps',
+                  expectedResult: 'Updated expected',
+                  priority: 'MEDIUM'
+                }
+              }
+            ]
           })
         }
       });
@@ -135,7 +146,7 @@ describe('AiTestGeneratorService', () => {
       const result = await service.processPrdChunk('project-1', 'user-1', 'Updated requirement');
 
       expect(result.action).toBe('MODIFIED');
-      expect(result.testCase?.title).toBe('Updated title');
+      expect(result.processedCases[0].testCase?.title).toBe('Updated title');
       expect(mockPrisma.testCase.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'tc-old' }
@@ -150,8 +161,12 @@ describe('AiTestGeneratorService', () => {
       mockGenerateContent.mockResolvedValueOnce({
         response: {
           text: () => JSON.stringify({
-            status: 'UNCHANGED',
-            reason: 'Already fully covered.'
+            actions: [
+              {
+                status: 'UNCHANGED',
+                reason: 'Already fully covered.'
+              }
+            ]
           })
         }
       });
