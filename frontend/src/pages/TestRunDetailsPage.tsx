@@ -9,7 +9,7 @@ import { DashboardLayout } from '../components/DashboardLayout';
 
 interface FilterCondition {
   id: string;
-  property: 'Status' | 'Module' | 'Automation' | 'Priority';
+  property: 'Status' | 'Module' | 'Automation' | 'Priority' | 'Source';
   operator: '==' | '!=';
   value: string;
 }
@@ -250,6 +250,7 @@ const TestRunDetailsPage = () => {
     }
     if (prop === 'Automation') return [{ v: 'MANUAL', l: 'MANUAL' }, { v: 'AUTOMATED', l: 'AUTOMATED' }, { v: 'FLAKY', l: 'FLAKY' }];
     if (prop === 'Priority') return [{ v: 'HIGH', l: 'HIGH' }, { v: 'MEDIUM', l: 'MEDIUM' }, { v: 'LOW', l: 'LOW' }];
+    if (prop === 'Source') return [{ v: 'FORM', l: 'Form' }, { v: 'BULK_UPLOAD', l: 'Bulk Upload' }, { v: 'AI_GENERATED', l: 'AI Generated' }];
     return [];
   };
 
@@ -267,6 +268,7 @@ const TestRunDetailsPage = () => {
         else if (f.property === 'Module') match = tc.moduleId === f.value;
         else if (f.property === 'Automation') match = (tc.hasAutomation ? 'AUTOMATED' : 'MANUAL') === f.value;
         else if (f.property === 'Priority') match = tc.priority === f.value;
+        else if (f.property === 'Source') match = tc.createdVia === f.value;
 
         const conditionMet = f.operator === '==' ? match : !match;
         if (!conditionMet) return false;
@@ -285,9 +287,8 @@ const TestRunDetailsPage = () => {
   const uniqueModules = new Set(run.items?.map(i => i.testCase?.moduleId).filter(Boolean));
   const modulesCount = uniqueModules.size;
 
-  // Exclude cases already in run for the Add Modal
   const existingCaseIds = new Set(run.items?.map(i => i.testCaseId));
-  const availableCases = allCases.filter(c => !existingCaseIds.has(c.id));
+  const availableCases = allCases.filter(c => !existingCaseIds.has(c.id) && c.status !== 'DRAFT');
 
   const filteredAvailableCases = executeFilters(availableCases, modalFilters, modalSearchQuery);
 
@@ -533,11 +534,13 @@ const TestRunDetailsPage = () => {
                     }
                     else if (prop === 'Automation') setTableFilterValue('MANUAL');
                     else if (prop === 'Priority') setTableFilterValue('HIGH');
+                    else if (prop === 'Source') setTableFilterValue('FORM');
                   }} className="bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] text-sm px-2 py-1 rounded-[2px] focus:outline-none dark:text-white text-[#161616]">
                     <option value="Status">Status</option>
                     <option value="Module">Module</option>
                     <option value="Automation">Automation</option>
                     <option value="Priority">Priority</option>
+                    <option value="Source">Source</option>
                   </select>
                   <select value={tableFilterOperator} onChange={e => setTableFilterOperator(e.target.value as any)} className="bg-transparent text-sm text-[#0F62FE] font-mono focus:outline-none">
                     <option value="==">IS</option><option value="!=">IS NOT</option>
@@ -702,11 +705,13 @@ const TestRunDetailsPage = () => {
                         }
                         else if (prop === 'Automation') setModalFilterValue('MANUAL');
                         else if (prop === 'Priority') setModalFilterValue('HIGH');
+                        else if (prop === 'Source') setModalFilterValue('FORM');
                       }} className="bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] text-sm px-2 py-1 rounded-[2px] focus:outline-none dark:text-white text-[#161616]">
                         <option value="Status">Status</option>
                         <option value="Module">Module</option>
                         <option value="Automation">Automation</option>
                         <option value="Priority">Priority</option>
+                        <option value="Source">Source</option>
                       </select>
                       <select value={modalFilterOperator} onChange={e => setModalFilterOperator(e.target.value as any)} className="bg-transparent text-sm text-[#0F62FE] font-mono focus:outline-none">
                         <option value="==">IS</option><option value="!=">IS NOT</option>

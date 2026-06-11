@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { ProjectSwitcher } from '../components/ProjectSwitcher';
 import { useProject } from '../context/ProjectContext';
+import { io } from 'socket.io-client';
 import {
   FilePlus, Upload, Sparkles, Filter, CheckCircle2, Clock,
   AlertCircle, X, FileText, UploadCloud, Edit3, Trash2, Search
@@ -15,24 +16,24 @@ import Papa from 'papaparse';
 
 interface FilterCondition {
   id: string;
-  property: 'Status' | 'Module' | 'Automation' | 'Priority';
+  property: 'Status' | 'Module' | 'Automation' | 'Priority' | 'Source';
   operator: '==' | '!=';
   value: string;
 }
 
 export const RepositoryPage: React.FC = () => {
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
-  const { activeProject } = useProject();
   const navigate = useNavigate();
   const location = useLocation();
+  const { activeProject } = useProject();
 
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [modules, setModules] = useState<ProjectModule[]>([]);
   const [cases, setCases] = useState<TestCase[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Filter State
   const [filters, setFilters] = useState<FilterCondition[]>([]);
-  const [filterProperty, setFilterProperty] = useState<'Status' | 'Module' | 'Automation' | 'Priority'>('Status');
+  const [filterProperty, setFilterProperty] = useState<'Status' | 'Module' | 'Automation' | 'Priority' | 'Source'>('Status');
   const [filterOperator, setFilterOperator] = useState<'==' | '!='>('==');
   const [filterValue, setFilterValue] = useState<string>('DRAFT');
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,7 +65,17 @@ export const RepositoryPage: React.FC = () => {
   const [isAiPrdOpen, setIsAiPrdOpen] = useState(false);
   const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [progressLogs, setProgressLogs] = useState<string[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
+  const aiLogsEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto scroll AI progress logs
+  useEffect(() => {
+    if (aiLogsEndRef.current) {
+      aiLogsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [progressLogs]);
 
   // Active Runs state
   const [activeRuns, setActiveRuns] = useState<TestRun[]>([]);
@@ -76,6 +87,22 @@ export const RepositoryPage: React.FC = () => {
   const [importHistory, setImportHistory] = useState<ImportHistory[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
+
+  // Notification State
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -183,14 +210,22 @@ export const RepositoryPage: React.FC = () => {
           }));
           setPreviewData(items);
         } catch (err: any) {
-          alert('Failed to parse CSV: ' + err.message);
+          setNotification({
+            type: 'error',
+            title: 'CSV Parsing Error',
+            message: 'Failed to parse CSV: ' + err.message
+          });
           setSelectedFile(null);
         } finally {
           setIsImporting(false);
         }
       },
       error: (error) => {
-        alert('Error reading CSV file: ' + error.message);
+        setNotification({
+          type: 'error',
+          title: 'File Reader Error',
+          message: 'Error reading CSV file: ' + error.message
+        });
         setIsImporting(false);
         setSelectedFile(null);
       }
@@ -202,13 +237,21 @@ export const RepositoryPage: React.FC = () => {
     setIsImporting(true);
     try {
       const res = await importTestCases(activeProject.id, selectedFile.name, previewData);
-      alert(`Successfully imported ${res.importedCount} test cases!`);
+      setNotification({
+        type: 'success',
+        title: 'Import Successful',
+        message: `Successfully imported ${res.importedCount} test cases!`
+      });
       setSelectedFile(null);
       setPreviewData(null);
       fetchHistory();
       await loadRepositoryData();
     } catch (err: any) {
-      alert('Failed to import CSV: ' + (err.message || 'Unknown error'));
+      setNotification({
+        type: 'error',
+        title: 'Import Failed',
+        message: 'Failed to import CSV: ' + (err.message || 'Unknown error')
+      });
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -225,7 +268,11 @@ export const RepositoryPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.type !== 'application/pdf') {
-      alert('Please upload a valid PDF file.');
+      setNotification({
+        type: 'error',
+        title: 'Invalid File Type',
+        message: 'Please upload a valid PDF file.'
+      });
       return;
     }
     setSelectedPdfFile(file);
@@ -234,18 +281,46 @@ export const RepositoryPage: React.FC = () => {
   const handlePdfSubmit = async () => {
     if (!activeProject?.id || !selectedPdfFile) return;
     setIsGenerating(true);
+    setIsProcessing(true);
+    setProgressLogs(['Menghubungkan ke server WebSocket...', 'Memulai ingestion dokumen PRD...']);
+
+    const socket = io('http://localhost:3000');
+
+    socket.on('ai-progress', (data: { status: string; message: string }) => {
+      setProgressLogs(prev => [...prev, data.message]);
+
+      if (data.status === 'done') {
+        setIsProcessing(false);
+        setTimeout(async () => {
+          setIsGenerating(false);
+          setIsAiPrdOpen(false);
+          setProgressLogs([]);
+          setSelectedPdfFile(null);
+          if (pdfInputRef.current) pdfInputRef.current.value = '';
+          await loadRepositoryData();
+          fetchHistory();
+          setNotification({
+            type: 'success',
+            title: 'AI Generation Done',
+            message: 'Successfully generated test cases from PDF!'
+          });
+        }, 2000);
+        socket.disconnect();
+      }
+    });
+
     try {
       await generateTestCasesFromPdf(activeProject.id, selectedPdfFile);
-      alert('AI successfully generated test cases from the PRD!');
-      setSelectedPdfFile(null);
-      setIsAiPrdOpen(false);
-      fetchHistory();
-      await loadRepositoryData();
     } catch (err: any) {
-      alert('Failed to generate test cases: ' + (err.message || 'Unknown error'));
-    } finally {
+      setNotification({
+        type: 'error',
+        title: 'Generation Failed',
+        message: 'Failed to generate test cases: ' + (err.message || 'Unknown error')
+      });
+      socket.disconnect();
       setIsGenerating(false);
-      if (pdfInputRef.current) pdfInputRef.current.value = '';
+      setIsProcessing(false);
+      fetchHistory();
     }
   };
 
@@ -311,7 +386,11 @@ export const RepositoryPage: React.FC = () => {
       // Handle Custom Module Creation
       if (isNewModuleMode) {
         if (!formData.newModuleName || !formData.newModuleCode) {
-          alert('Please fill out the new module name and code.');
+          setNotification({
+            type: 'error',
+            title: 'Validation Error',
+            message: 'Please fill out the new module name and code.'
+          });
           return;
         }
         const newMod = await createProjectModule(activeProject.id, formData.newModuleName, formData.newModuleCode);
@@ -339,9 +418,18 @@ export const RepositoryPage: React.FC = () => {
 
       await loadRepositoryData();
       setIsCaseModalOpen(false);
-    } catch (err) {
+      setNotification({
+        type: 'success',
+        title: editingId ? 'Case Updated' : 'Case Created',
+        message: editingId ? 'Successfully updated test case.' : 'Successfully created a new test case.'
+      });
+    } catch (err: any) {
       console.error('Failed to submit case', err);
-      alert('Error submitting test case. Please check module code uniqueness or inputs.');
+      setNotification({
+        type: 'error',
+        title: 'Submission Failed',
+        message: err.message || 'Error submitting test case. Please check module code uniqueness or inputs.'
+      });
     }
   };
 
@@ -391,9 +479,18 @@ export const RepositoryPage: React.FC = () => {
       );
       await loadRepositoryData();
       setSelectedIds(new Set());
-    } catch (err) {
+      setNotification({
+        type: 'success',
+        title: 'Bulk Status Updated',
+        message: `Successfully marked selected test cases as ${status}.`
+      });
+    } catch (err: any) {
       console.error(err);
-      alert('Error updating status');
+      setNotification({
+        type: 'error',
+        title: 'Update Failed',
+        message: err.message || 'Error updating status.'
+      });
     }
   };
 
@@ -432,6 +529,7 @@ export const RepositoryPage: React.FC = () => {
       else if (f.property === 'Module') match = tc.moduleId === f.value;
       else if (f.property === 'Automation') match = (tc.hasAutomation ? 'AUTOMATED' : 'MANUAL') === f.value;
       else if (f.property === 'Priority') match = tc.priority === f.value;
+      else if (f.property === 'Source') match = tc.createdVia === f.value;
 
       const conditionMet = f.operator === '==' ? match : !match;
       if (!conditionMet) return false;
@@ -457,6 +555,7 @@ export const RepositoryPage: React.FC = () => {
     if (filterProperty === 'Module') return modules.map(m => ({ v: m.id, l: m.name }));
     if (filterProperty === 'Automation') return [{ v: 'MANUAL', l: 'MANUAL' }, { v: 'AUTOMATED', l: 'AUTOMATED' }, { v: 'FLAKY', l: 'FLAKY' }];
     if (filterProperty === 'Priority') return [{ v: 'HIGH', l: 'HIGH' }, { v: 'MEDIUM', l: 'MEDIUM' }, { v: 'LOW', l: 'LOW' }];
+    if (filterProperty === 'Source') return [{ v: 'FORM', l: 'Form' }, { v: 'BULK_UPLOAD', l: 'Bulk Upload' }, { v: 'AI_GENERATED', l: 'AI Generated' }];
     return [];
   };
 
@@ -471,6 +570,19 @@ export const RepositoryPage: React.FC = () => {
   const AutoPill = ({ hasAutomation }: { hasAutomation: boolean }) => {
     if (hasAutomation) return <span className="font-mono text-xs text-[#0F62FE] border border-[#0F62FE]/30 px-2 py-0.5 rounded-[2px] font-bold">AUTO</span>;
     return <span className="font-mono text-xs text-[#8D8D8D] border border-[#525252] px-2 py-0.5 rounded-[2px] font-bold">MANUAL</span>;
+  };
+
+  const SourcePill = ({ source }: { source: TestCase['createdVia'] }) => {
+    switch (source) {
+      case 'FORM':
+        return <span className="font-mono text-xs text-[#8D8D8D] border border-[#525252] px-2 py-0.5 rounded-[2px] font-bold">FORM</span>;
+      case 'BULK_UPLOAD':
+        return <span className="font-mono text-xs text-[#0F62FE] border border-[#0F62FE]/30 bg-[#0F62FE]/5 px-2 py-0.5 rounded-[2px] font-bold">BULK</span>;
+      case 'AI_GENERATED':
+        return <span className="font-mono text-xs text-[#8A3FFC] border border-[#8A3FFC]/30 bg-[#8A3FFC]/5 px-2 py-0.5 rounded-[2px] flex items-center space-x-1 font-bold"><Sparkles size={10} /><span>AI</span></span>;
+      default:
+        return <span className="font-mono text-xs text-[#8D8D8D] border border-[#525252] px-2 py-0.5 rounded-[2px] font-bold">FORM</span>;
+    }
   };
 
   const PriorityPill = ({ priority }: { priority: 'HIGH' | 'MEDIUM' | 'LOW' }) => {
@@ -801,27 +913,60 @@ export const RepositoryPage: React.FC = () => {
                 <div className="mb-8 p-6 border border-[#8A3FFC] bg-[#FDFBFF] dark:bg-[#1C132A]/20 rounded-[4px] flex flex-col items-center justify-center animate-in zoom-in-95">
                   <FileText size={48} className="text-[#8A3FFC] mb-4 animate-pulse" />
                   <h4 className="font-sans font-bold text-[#161616] dark:text-white mb-2">{selectedPdfFile?.name}</h4>
-                  <p className="text-sm text-[#525252] dark:text-[#A8A8A8] mb-6 text-center max-w-md">
-                    Ready to generate test cases. The Gemini LLM will analyze this PDF and write the extracted test cases into the database as <strong>DRAFT</strong>.
-                  </p>
-                  <div className="flex space-x-4">
-                    <button onClick={cancelPdfImport} disabled={isGenerating} className="px-6 py-2 font-sans font-semibold text-sm text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white transition-colors disabled:opacity-50">
-                      Cancel
-                    </button>
-                    <button onClick={handlePdfSubmit} disabled={isGenerating} className="px-6 py-2 font-sans font-semibold text-sm text-white bg-[#8A3FFC] hover:bg-[#742de6] rounded-[4px] transition-colors shadow-sm disabled:opacity-50 flex items-center space-x-2">
-                      {isGenerating ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          <span>Generating...</span>
-                        </>
-                      ) : (
-                        <span>Submit Ingestion</span>
-                      )}
-                    </button>
-                  </div>
+                  
+                  {!isGenerating ? (
+                    <>
+                      <p className="text-sm text-[#525252] dark:text-[#A8A8A8] mb-6 text-center max-w-md">
+                        Ready to generate test cases. The Gemini LLM will analyze this PDF and write the extracted test cases into the database as <strong>DRAFT</strong>.
+                      </p>
+                      <div className="flex space-x-4">
+                        <button onClick={cancelPdfImport} disabled={isGenerating} className="px-6 py-2 font-sans font-semibold text-sm text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white transition-colors disabled:opacity-50">
+                          Cancel
+                        </button>
+                        <button onClick={handlePdfSubmit} className="px-6 py-2 font-sans font-semibold text-sm text-white bg-[#8A3FFC] hover:bg-[#742de6] rounded-[4px] transition-colors shadow-sm flex items-center space-x-2">
+                          <span>Submit Ingestion</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full mt-4 flex flex-col items-center">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <svg className="animate-spin h-5 w-5 text-[#8A3FFC]" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span className="text-sm font-sans font-semibold text-[#161616] dark:text-white">
+                          {isProcessing ? 'AI Processing document...' : 'Finalizing generation...'}
+                        </span>
+                      </div>
+
+                      {/* Terminal-styled Logs */}
+                      <div className="w-full bg-[#161616] border border-[#393939] rounded-[4px] shadow-sm flex flex-col text-left">
+                        <div className="p-3 border-b border-[#393939] bg-[#000000] flex justify-between items-center">
+                          <h5 className="font-mono font-bold text-xs text-[#8A3FFC] flex items-center">
+                            <span className="w-2 h-2 rounded-full bg-[#8A3FFC] animate-ping mr-2"></span>
+                            AI PROCESSING LOGS
+                          </h5>
+                          <span className="font-mono text-[10px] text-[#757575]">SOCKET.IO FEED</span>
+                        </div>
+                        <div className="p-4 h-48 overflow-y-auto font-mono text-xs text-[#A8A8A8] space-y-1.5 bg-[#121212]">
+                          {progressLogs.map((log, index) => (
+                            <div key={index} className="flex space-x-2">
+                              <span className="text-[#525252] shrink-0">&gt;</span>
+                              <span className={log.includes('Selesai') ? 'text-[#24A148]' : 'text-[#E0E0E0]'}>{log}</span>
+                            </div>
+                          ))}
+                          {isProcessing && (
+                            <div className="flex space-x-2 animate-pulse">
+                              <span className="text-[#8A3FFC] shrink-0">&gt;</span>
+                              <span className="text-[#8A3FFC]">Processing...</span>
+                            </div>
+                          )}
+                          <div ref={aiLogsEndRef} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -951,11 +1096,13 @@ export const RepositoryPage: React.FC = () => {
                   else if (prop === 'Module') setFilterValue(modules[0]?.id || '');
                   else if (prop === 'Automation') setFilterValue('MANUAL');
                   else if (prop === 'Priority') setFilterValue('HIGH');
+                  else if (prop === 'Source') setFilterValue('FORM');
                 }} className="bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] text-sm px-2 py-1 rounded-[2px] focus:outline-none dark:text-white text-[#161616]">
                   <option value="Status">Status</option>
                   <option value="Module">Module</option>
                   <option value="Automation">Automation</option>
                   <option value="Priority">Priority</option>
+                  <option value="Source">Source</option>
                 </select>
                 <select value={filterOperator} onChange={e => setFilterOperator(e.target.value as any)} className="bg-transparent text-sm text-[#0F62FE] font-mono focus:outline-none">
                   <option value="==">IS</option>
@@ -1023,6 +1170,7 @@ export const RepositoryPage: React.FC = () => {
                               <PriorityPill priority={tc.priority || 'MEDIUM'} />
                               <StatusPill status={tc.status} />
                               <AutoPill hasAutomation={tc.hasAutomation} />
+                              <SourcePill source={tc.createdVia} />
                             </div>
                           </div>
                         </div>
@@ -1074,6 +1222,17 @@ export const RepositoryPage: React.FC = () => {
                     <option value="DEPRECATED">Mark DEPRECATED</option>
                   </select>
                   <button onClick={async () => {
+                    // Check if any selected test case has DRAFT status
+                    const selectedDraftCases = cases.filter(c => selectedIds.has(c.id) && c.status === 'DRAFT');
+                    if (selectedDraftCases.length > 0) {
+                      const draftNames = selectedDraftCases.map(c => c.publicId || c.title).join(', ');
+                      setNotification({
+                        type: 'error',
+                        title: 'Draft Cases Selected',
+                        message: `Cannot add test cases in DRAFT status to a Test Run. Please review and approve them first:\n\n${draftNames}`
+                      });
+                      return;
+                    }
                     try {
                       const runs = await testRunsApi.findAll(activeProject!.id);
                       const openRuns = runs.filter((r: any) => r.status === 'DRAFT' || r.status === 'IN_PROGRESS');
@@ -1093,8 +1252,17 @@ export const RepositoryPage: React.FC = () => {
                       await Promise.all(Array.from(selectedIds).map(id => deleteTestCase(id)));
                       await loadRepositoryData();
                       setSelectedIds(new Set());
+                      setNotification({
+                        type: 'success',
+                        title: 'Delete Successful',
+                        message: 'Successfully deleted the selected test cases.'
+                      });
                     } catch (err: any) {
-                      alert('Error deleting test case: ' + (err.message || 'Unknown error. Make sure it is not part of a test run.'));
+                      setNotification({
+                        type: 'error',
+                        title: 'Delete Failed',
+                        message: 'Error deleting test case: ' + (err.message || 'Unknown error. Make sure it is not part of a test run.')
+                      });
                     }
                   }} className="text-[#DA1E28] hover:text-[#BA1B23] p-1.5 rounded-full hover:bg-[#DA1E28]/10"><Trash2 size={16} /></button>
                 </div>
@@ -1141,11 +1309,19 @@ export const RepositoryPage: React.FC = () => {
                     if (!selectedRunId) return;
                     try {
                       await testRunsApi.addItems(selectedRunId, Array.from(selectedIds));
-                      alert('Successfully added test cases to run!');
+                      setNotification({
+                        type: 'success',
+                        title: 'Success',
+                        message: 'Successfully added test cases to run!'
+                      });
                       setIsAddToRunModalOpen(false);
                       setSelectedIds(new Set());
                     } catch (err: any) {
-                      alert('Failed to add to test run: ' + (err.message || 'Unknown error'));
+                      setNotification({
+                        type: 'error',
+                        title: 'Addition Failed',
+                        message: 'Failed to add to test run: ' + (err.message || 'Unknown error')
+                      });
                     }
                   }}
                   disabled={!selectedRunId}
@@ -1156,6 +1332,23 @@ export const RepositoryPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {notification && (
+        <div className={`fixed top-6 right-6 z-[200] max-w-md w-full bg-white dark:bg-[#1C1C21] border-l-4 shadow-2xl p-4 rounded-[4px] animate-in slide-in-from-top-10 flex items-start space-x-3 ${
+          notification.type === 'success' ? 'border-[#24A148]' : 'border-[#DA1E28]'
+        }`}>
+          <div className={`flex-shrink-0 mt-0.5 ${notification.type === 'success' ? 'text-[#24A148]' : 'text-[#DA1E28]'}`}>
+            {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-[#161616] dark:text-white">{notification.title}</p>
+            <p className="text-xs text-[#525252] dark:text-[#A8A8A8] mt-1 break-words whitespace-pre-line leading-relaxed">{notification.message}</p>
+          </div>
+          <button onClick={() => setNotification(null)} className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white flex-shrink-0">
+            <X size={16} />
+          </button>
         </div>
       )}
 

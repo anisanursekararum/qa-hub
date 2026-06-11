@@ -143,6 +143,20 @@ export class TestrunService {
     if (!run) throw new NotFoundException('Test run not found');
     if (run.status !== 'DRAFT') throw new BadRequestException('Can only add items in DRAFT state');
 
+    // Validate that none of the target test cases are in DRAFT status
+    const draftCases = await this.prisma.testCase.findMany({
+      where: {
+        id: { in: dto.testCaseIds },
+        status: 'DRAFT',
+      },
+      select: { publicId: true, title: true },
+    });
+
+    if (draftCases.length > 0) {
+      const draftList = draftCases.map(c => c.publicId || c.title).join(', ');
+      throw new BadRequestException(`Cannot add test cases in DRAFT status to a Test Run: ${draftList}`);
+    }
+
     // Create many without duplicates (use createMany and skipDuplicates)
     await this.prisma.testRunItem.createMany({
       data: dto.testCaseIds.map(tcId => ({

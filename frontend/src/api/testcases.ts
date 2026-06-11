@@ -28,6 +28,7 @@ export interface TestCase {
   hasAutomation: boolean;
   status: 'DRAFT' | 'READY' | 'DEPRECATED';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  createdVia: 'FORM' | 'BULK_UPLOAD' | 'AI_GENERATED';
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -49,7 +50,10 @@ export const createTestCase = async (projectId: string, data: TestCasePayload): 
     headers: getHeaders(),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create test case');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to create test case');
+  }
   return res.json();
 };
 
@@ -59,7 +63,10 @@ export const updateTestCase = async (id: string, data: TestCasePayload): Promise
     headers: getHeaders(),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to update test case');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to update test case');
+  }
   return res.json();
 };
 
@@ -68,7 +75,10 @@ export const deleteTestCase = async (id: string): Promise<void> => {
     method: 'DELETE',
     headers: getHeaders(),
   });
-  if (!res.ok) throw new Error('Failed to delete test case');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to delete test case');
+  }
 };
 
 export interface BulkTestCasePayload {
@@ -131,7 +141,7 @@ export const generateTestCasesFromPdf = async (projectId: string, file: File): P
   formData.append('file', file);
 
   const token = localStorage.getItem('token');
-  const res = await fetch(`${API_URL}/testcase/generate?projectId=${projectId}`, {
+  const res = await fetch(`${API_URL}/testcase/sync-prd?projectId=${projectId}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
