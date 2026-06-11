@@ -33,14 +33,14 @@ const TestRunsPage = () => {
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     } else {
-      navigate('/login');
+      navigate('/');
     }
   }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    navigate('/');
   };
 
   useEffect(() => {

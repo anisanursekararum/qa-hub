@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle, Zap, Shield, Sparkles } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
@@ -33,7 +33,7 @@ const LandingPage = () => {
               Log in
             </button>
             <button 
-              onClick={() => navigate('/login')} 
+              onClick={() => navigate('/signup')} 
               className="bg-[#0F62FE] hover:bg-[#0353E9] text-white text-sm font-semibold px-5 py-2 rounded-[4px] transition-colors shadow-lg shadow-[#0F62FE]/20"
             >
               Sign up
@@ -59,7 +59,7 @@ const LandingPage = () => {
             </p>
             <div className="flex items-center space-x-4 pt-4">
               <button 
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/signup')}
                 className="bg-[#161616] dark:bg-white text-white dark:text-[#161616] text-base font-semibold px-8 py-3.5 rounded-[4px] hover:bg-[#393939] dark:hover:bg-[#E0E0E0] transition-colors flex items-center space-x-2"
               >
                 <span>Get Started for Free</span>

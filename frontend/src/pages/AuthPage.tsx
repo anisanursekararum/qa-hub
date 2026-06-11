@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import LoginForm from '../components/LoginForm';
 import RegisterForm from '../components/RegisterForm';
 
 export const AuthPage: React.FC = () => {
-  const [view, setView] = useState<'login' | 'register'>('login');
-  const [authenticatedUser, setAuthenticatedUser] = useState<{ name: string; email: string } | null>(null);
+  const location = useLocation();
   const navigate = useNavigate();
+  const [view, setView] = useState<'login' | 'register'>(
+    location.pathname === '/signup' ? 'register' : 'login'
+  );
+  const [authenticatedUser, setAuthenticatedUser] = useState<{ name: string; email: string } | null>(null);
+
+  useEffect(() => {
+    setView(location.pathname === '/signup' ? 'register' : 'login');
+  }, [location.pathname]);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -42,7 +49,7 @@ export const AuthPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F7F7F7] dark:bg-[#161616] text-[#161616] dark:text-[#E0E0E0] flex flex-col transition-colors duration-200">
       {/* Persistent Elegant Header */}
-      <Navbar currentPath="/login" user={authenticatedUser} onLogout={handleLogout} />
+      <Navbar currentPath={location.pathname} user={authenticatedUser} onLogout={handleLogout} />
 
       {/* Main Authentication Grid Section */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">

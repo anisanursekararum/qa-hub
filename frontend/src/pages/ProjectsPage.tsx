@@ -34,7 +34,7 @@ export const ProjectsPage: React.FC = () => {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (!storedUser) {
-      navigate('/login');
+      navigate('/');
     } else {
       setUser(JSON.parse(storedUser));
     }
@@ -60,7 +60,7 @@ export const ProjectsPage: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    navigate('/');
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FolderKanban, Library, PlayCircle, Settings, HelpCircle, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Library, PlayCircle, Settings, HelpCircle } from 'lucide-react';
 
 interface SidebarProps {
   currentPath: string;

@@ -21,7 +21,7 @@ export const DashboardPage: React.FC = () => {
     const storedUser = localStorage.getItem('user');
 
     if (!token || !storedUser) {
-      navigate('/login');
+      navigate('/');
     } else {
       setUser(JSON.parse(storedUser));
       fetchSummary();
@@ -43,7 +43,7 @@ export const DashboardPage: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    navigate('/');
   };
 
   if (!user) return null;

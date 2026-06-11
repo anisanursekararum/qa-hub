@@ -117,3 +117,30 @@ export const getImportHistory = async (projectId: string, page: number = 1): Pro
   if (!res.ok) throw new Error('Failed to fetch import history');
   return res.json();
 };
+
+export const getPrdImportHistory = async (projectId: string, page: number = 1): Promise<ImportHistoryResponse> => {
+  const res = await fetch(`${API_URL}/testcase/prd/history?projectId=${projectId}&page=${page}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to fetch PRD import history');
+  return res.json();
+};
+
+export const generateTestCasesFromPdf = async (projectId: string, file: File): Promise<any> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_URL}/testcase/generate?projectId=${projectId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to generate test cases from PDF');
+  }
+  return res.json();
+};
