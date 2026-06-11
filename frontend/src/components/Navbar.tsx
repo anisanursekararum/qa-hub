@@ -96,7 +96,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath = '/', user = null, 
                   Sign In
                 </a>
                 <a
-                  href="/register"
+                  href="/signup"
                   className="px-3.5 py-1.5 font-sans font-semibold text-xs bg-[#0F62FE] hover:bg-[#0353E9] rounded-[4px] text-white transition-colors duration-150 focus:ring-1 focus:ring-offset-1 focus:ring-[#0F62FE]"
                 >
                   Sign Up

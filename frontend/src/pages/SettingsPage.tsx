@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Lock, Bell, Palette, Globe, Save, Monitor } from 'lucide-react';
+import { Shield, Bell, Palette, Globe, Save, Monitor } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { authApi } from '../api/auth';
-import { useProject } from '../context/ProjectContext';
 
 const SettingsPage = () => {
-  const { activeProject } = useProject();
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const navigate = useNavigate();
 
@@ -21,11 +19,6 @@ const SettingsPage = () => {
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
   const [isInvalidating, setIsInvalidating] = useState(false);
 
-  // Admin Controls State (Local/Mock for now)
-  const [joinCodeLimit, setJoinCodeLimit] = useState('3');
-  const [lockoutPeriod, setLockoutPeriod] = useState('1'); // hours
-  const [isAdminSaved, setIsAdminSaved] = useState(false);
-
   // Preferences State
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
   const [landingPage, setLandingPage] = useState(localStorage.getItem('landingPage') || '/projects');
@@ -36,14 +29,14 @@ const SettingsPage = () => {
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     } else {
-      navigate('/login');
+      navigate('/');
     }
   }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {

@@ -1,12 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { TestcaseService } from './testcase.service';
+import { AiGeneratorService } from './ai-generator.service';
 import { CreateTestCaseDto, UpdateTestCaseDto, BulkImportTestCaseDto } from './dto/testcase.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('testcase')
 @UseGuards(JwtAuthGuard)
 export class TestcaseController {
-  constructor(private readonly testcaseService: TestcaseService) {}
+  constructor(
+    private readonly testcaseService: TestcaseService,
+    private readonly aiGeneratorService: AiGeneratorService,
+  ) {}
 
   @Get('bulk/history')
   getImportHistory(
@@ -15,6 +20,28 @@ export class TestcaseController {
     @Query('limit') limit: string = '5'
   ) {
     return this.testcaseService.getImportHistory(projectId, parseInt(page, 10), parseInt(limit, 10));
+  }
+
+  @Get('prd/history')
+  getPrdImportHistory(
+    @Query('projectId') projectId: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '5'
+  ) {
+    return this.testcaseService.getPrdImportHistory(projectId, parseInt(page, 10), parseInt(limit, 10));
+  }
+
+  @Post('generate')
+  @UseInterceptors(FileInterceptor('file'))
+  generate(
+    @Request() req: any,
+    @Query('projectId') projectId: string,
+    @UploadedFile() file: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('PDF file is required');
+    }
+    return this.aiGeneratorService.generateTestCasesFromPdf(projectId, req.user.userId, file.buffer, file.originalname);
   }
 
   @Post('bulk')

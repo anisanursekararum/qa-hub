@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -19,12 +19,20 @@ function App() {
       localStorage.setItem('lastActivity', Date.now().toString());
     };
 
+    // Initialize lastActivity if user is already logged in but timer hasn't started
+    if (localStorage.getItem('token') && !localStorage.getItem('lastActivity')) {
+      resetTimer();
+    }
+
     const checkIdle = setInterval(() => {
-      const lastActivity = parseInt(localStorage.getItem('lastActivity') || '0', 10);
-      if (lastActivity && Date.now() - lastActivity > 86400000) { // 24 hours
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+      const token = localStorage.getItem('token');
+      if (token) {
+        const lastActivity = parseInt(localStorage.getItem('lastActivity') || '0', 10);
+        if (lastActivity && Date.now() - lastActivity > 86400000) { // 24 hours
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/';
+        }
       }
     }, 60000); // Check every minute
 
@@ -47,6 +55,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<AuthPage />} />
+          <Route path="/signup" element={<AuthPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/repository" element={<RepositoryPage />} />

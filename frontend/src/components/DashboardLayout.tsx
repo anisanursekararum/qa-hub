@@ -1,18 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Sidebar } from './Sidebar';
 import ThemeToggle from './ThemeToggle';
 import { LogOut } from 'lucide-react';
-import { useProject } from '../context/ProjectContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
   user: { name: string; email: string };
   onLogout: () => void;
   currentPath?: string;
+  hideProjectSwitcher?: boolean;
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, user, onLogout, currentPath = '/dashboard' }) => {
-  const { activeProject } = useProject();
 
   return (
     <div className="flex min-h-screen bg-white dark:bg-[#121212] transition-colors duration-200">
