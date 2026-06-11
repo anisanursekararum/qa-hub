@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 import { getProjectModules, createProjectModule, ProjectModule } from '../api/modules';
-import { getTestCases, createTestCase, updateTestCase, deleteTestCase, importTestCases, getImportHistory, TestCase, BulkTestCasePayload, ImportHistory } from '../api/testcases';
+import { getTestCases, createTestCase, updateTestCase, deleteTestCase, importTestCases, getImportHistory, getPrdImportHistory, TestCase, BulkTestCasePayload, ImportHistory, generateTestCasesFromPdf } from '../api/testcases';
 import { testRunsApi, TestRun } from '../api/testruns';
 import Papa from 'papaparse';
 
@@ -60,6 +60,12 @@ export const RepositoryPage: React.FC = () => {
   const [isViewOnlyMode, setIsViewOnlyMode] = useState(false);
   const [isAddToRunModalOpen, setIsAddToRunModalOpen] = useState(false);
 
+  // AI PRD Ingestion State
+  const [isAiPrdOpen, setIsAiPrdOpen] = useState(false);
+  const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const pdfInputRef = React.useRef<HTMLInputElement>(null);
+
   // Active Runs state
   const [activeRuns, setActiveRuns] = useState<TestRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
@@ -90,7 +96,7 @@ export const RepositoryPage: React.FC = () => {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (!storedUser) {
-      navigate('/login');
+      navigate('/');
     } else {
       setUser(JSON.parse(storedUser));
     }
@@ -103,15 +109,23 @@ export const RepositoryPage: React.FC = () => {
   }, [activeProject?.id]);
 
   useEffect(() => {
-    if (activeProject?.id && isBulkImportOpen) {
+    if (activeProject?.id && (isBulkImportOpen || isAiPrdOpen)) {
       fetchHistory();
     }
-  }, [activeProject?.id, isBulkImportOpen, historyPage]);
+  }, [activeProject?.id, isBulkImportOpen, isAiPrdOpen, historyPage]);
+
+  useEffect(() => {
+    if (isBulkImportOpen || isAiPrdOpen) {
+      setHistoryPage(1);
+    }
+  }, [isBulkImportOpen, isAiPrdOpen]);
 
   const fetchHistory = async () => {
     if (!activeProject?.id) return;
     try {
-      const res = await getImportHistory(activeProject.id, historyPage);
+      const res = isAiPrdOpen
+        ? await getPrdImportHistory(activeProject.id, historyPage)
+        : await getImportHistory(activeProject.id, historyPage);
       setImportHistory(res.data);
       setHistoryTotalPages(res.totalPages || 1);
     } catch (err) {
@@ -136,7 +150,7 @@ export const RepositoryPage: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    navigate('/');
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,6 +219,39 @@ export const RepositoryPage: React.FC = () => {
     setSelectedFile(null);
     setPreviewData(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      alert('Please upload a valid PDF file.');
+      return;
+    }
+    setSelectedPdfFile(file);
+  };
+
+  const handlePdfSubmit = async () => {
+    if (!activeProject?.id || !selectedPdfFile) return;
+    setIsGenerating(true);
+    try {
+      await generateTestCasesFromPdf(activeProject.id, selectedPdfFile);
+      alert('AI successfully generated test cases from the PRD!');
+      setSelectedPdfFile(null);
+      setIsAiPrdOpen(false);
+      fetchHistory();
+      await loadRepositoryData();
+    } catch (err: any) {
+      alert('Failed to generate test cases: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsGenerating(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
+    }
+  };
+
+  const cancelPdfImport = () => {
+    setSelectedPdfFile(null);
+    if (pdfInputRef.current) pdfInputRef.current.value = '';
   };
 
   const openCreateModal = () => {
@@ -712,6 +759,134 @@ export const RepositoryPage: React.FC = () => {
         </div>
       )}
 
+      {/* AI PRD Ingestion Modal */}
+      {isAiPrdOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95">
+            <div className="flex justify-between items-center p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] sticky top-0 z-10">
+              <div className="flex items-center space-x-2">
+                <Sparkles size={18} className="text-[#8A3FFC]" />
+                <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">AI PRD Ingestion</h3>
+              </div>
+              <button 
+                onClick={() => { setIsAiPrdOpen(false); cancelPdfImport(); }} 
+                disabled={isGenerating} 
+                className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors disabled:opacity-50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              {!selectedPdfFile ? (
+                <>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    ref={pdfInputRef}
+                    onChange={handlePdfUpload}
+                  />
+                  <div
+                    onClick={() => !isGenerating && pdfInputRef.current?.click()}
+                    className={`border-2 border-dashed border-[#CCCCCC] dark:border-[#393939] rounded-[4px] p-10 flex flex-col items-center justify-center text-center mb-8 bg-[#F7F7F7] dark:bg-[#121212] ${isGenerating ? 'opacity-50 cursor-wait' : 'hover:border-[#8A3FFC] cursor-pointer'}`}
+                  >
+                    <UploadCloud size={32} className={`${isGenerating ? 'text-[#8A3FFC] animate-bounce' : 'text-[#525252] dark:text-[#A8A8A8]'} mb-4`} />
+                    <h4 className="font-sans font-bold text-[#161616] dark:text-white mb-1">
+                      {isGenerating ? 'Generating Test Cases...' : 'Click to select PRD PDF file'}
+                    </h4>
+                    {!isGenerating && <p className="text-sm text-[#757575] mt-2">Only PDF files containing plain text specifications are supported</p>}
+                  </div>
+                </>
+              ) : (
+                <div className="mb-8 p-6 border border-[#8A3FFC] bg-[#FDFBFF] dark:bg-[#1C132A]/20 rounded-[4px] flex flex-col items-center justify-center animate-in zoom-in-95">
+                  <FileText size={48} className="text-[#8A3FFC] mb-4 animate-pulse" />
+                  <h4 className="font-sans font-bold text-[#161616] dark:text-white mb-2">{selectedPdfFile?.name}</h4>
+                  <p className="text-sm text-[#525252] dark:text-[#A8A8A8] mb-6 text-center max-w-md">
+                    Ready to generate test cases. The Gemini LLM will analyze this PDF and write the extracted test cases into the database as <strong>DRAFT</strong>.
+                  </p>
+                  <div className="flex space-x-4">
+                    <button onClick={cancelPdfImport} disabled={isGenerating} className="px-6 py-2 font-sans font-semibold text-sm text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white transition-colors disabled:opacity-50">
+                      Cancel
+                    </button>
+                    <button onClick={handlePdfSubmit} disabled={isGenerating} className="px-6 py-2 font-sans font-semibold text-sm text-white bg-[#8A3FFC] hover:bg-[#742de6] rounded-[4px] transition-colors shadow-sm disabled:opacity-50 flex items-center space-x-2">
+                      {isGenerating ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <span>Generating...</span>
+                        </>
+                      ) : (
+                        <span>Submit Ingestion</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* History Table */}
+              <div className="mt-8 text-left">
+                <h4 className="font-sans font-bold text-sm text-[#161616] dark:text-white mb-4">Import History</h4>
+                <div className="border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] overflow-hidden bg-white dark:bg-[#1C1C21]">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#F4F4F4] dark:bg-[#2D2D39] border-b border-[#E0E0E0] dark:border-[#393939]">
+                        <th className="px-4 py-3 font-sans text-sm font-semibold text-[#161616] dark:text-white">File Name</th>
+                        <th className="px-4 py-3 font-sans text-sm font-semibold text-[#161616] dark:text-white text-right">Row Count</th>
+                        <th className="px-4 py-3 font-sans text-sm font-semibold text-[#161616] dark:text-white">Uploaded By</th>
+                        <th className="px-4 py-3 font-sans text-sm font-semibold text-[#161616] dark:text-white">Timestamp</th>
+                        <th className="px-4 py-3 font-sans text-sm font-semibold text-[#161616] dark:text-white">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importHistory.length === 0 ? (
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-[#757575] dark:text-[#8D8D8D]">No history found.</td></tr>
+                      ) : (
+                        importHistory.map((h) => (
+                          <tr key={h.id} className="border-b border-[#E0E0E0] dark:border-[#393939] hover:bg-[#F9F9F9] dark:hover:bg-[#121212] transition-colors">
+                            <td className="px-4 py-3 text-sm text-[#161616] dark:text-white truncate max-w-[150px]">{h.fileName}</td>
+                            <td className="px-4 py-3 text-sm text-[#161616] dark:text-white text-right">{h.rowCount}</td>
+                            <td className="px-4 py-3 text-sm text-[#525252] dark:text-[#A8A8A8] truncate max-w-[150px]">{h.uploadedBy?.name || 'Unknown'}</td>
+                            <td className="px-4 py-3 text-sm text-[#525252] dark:text-[#A8A8A8]">{new Date(h.createdAt).toLocaleString()}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-sm font-bold ${h.status === 'SUCCESS' ? 'bg-[#DEFBE6] text-[#198038] dark:bg-[#198038]/20 dark:text-[#24A148]' : 'bg-[#FFF1F1] text-[#DA1E28] dark:bg-[#DA1E28]/20 dark:text-[#FA4D56]'}`}>
+                                {h.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Pagination Controls */}
+                  {historyTotalPages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-[#E0E0E0] dark:border-[#393939] bg-[#F4F4F4] dark:bg-[#161616]">
+                      <button
+                        disabled={historyPage === 1}
+                        onClick={() => setHistoryPage(p => p - 1)}
+                        className="text-sm font-semibold text-[#0F62FE] disabled:text-[#A8A8A8] disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm text-[#525252] dark:text-[#8D8D8D]">Page {historyPage} of {historyTotalPages}</span>
+                      <button
+                        disabled={historyPage === historyTotalPages}
+                        onClick={() => setHistoryPage(p => p + 1)}
+                        className="text-sm font-semibold text-[#0F62FE] disabled:text-[#A8A8A8] disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <div className="p-6 sm:p-8 max-w-7xl mx-auto min-h-full pb-32">
         {!activeProject ? (
@@ -735,15 +910,15 @@ export const RepositoryPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <button onClick={openCreateModal} className="flex items-start p-5 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] hover:border-[#0F62FE] transition-colors group">
+              <button onClick={openCreateModal} className="flex items-start p-5 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] hover:border-[#0F62FE] dark:hover:border-[#0F62FE] hover:ring-1 hover:ring-[#0F62FE] transition-all duration-200 group">
                 <div className="w-10 h-10 bg-[#F4F4F4] dark:bg-[#121212] flex items-center justify-center rounded-[4px] mr-4"><FilePlus size={20} className="text-[#0F62FE]" /></div>
                 <div className="text-left"><h3 className="font-bold text-sm mb-1 text-black dark:text-white">Manual Create</h3><p className="text-sm text-[#757575] dark:text-[#8D8D8D]">Write from scratch.</p></div>
               </button>
-              <button onClick={() => setIsBulkImportOpen(true)} className="flex items-start p-5 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] hover:border-[#0F62FE] transition-colors group">
+              <button onClick={() => setIsBulkImportOpen(true)} className="flex items-start p-5 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] hover:border-[#0F62FE] dark:hover:border-[#0F62FE] hover:ring-1 hover:ring-[#0F62FE] transition-all duration-200 group">
                 <div className="w-10 h-10 bg-[#F4F4F4] dark:bg-[#121212] flex items-center justify-center rounded-[4px] mr-4"><Upload size={20} className="text-black dark:text-white" /></div>
                 <div className="text-left"><h3 className="font-bold text-sm mb-1 text-black dark:text-white">Bulk CSV Import</h3><p className="text-sm text-[#757575] dark:text-[#8D8D8D]">Import legacy cases.</p></div>
               </button>
-              <button className="flex items-start p-5 bg-[#F6F2FF] dark:bg-[#121212] border-2 border-dashed border-[#8A3FFC]/50 rounded-[4px] group hover:border-[#8A3FFC] transition-colors">
+              <button onClick={() => setIsAiPrdOpen(true)} className="flex items-start p-5 bg-[#F6F2FF] dark:bg-[#121212] border-2 border-dashed border-[#8A3FFC]/50 rounded-[4px] group hover:border-[#8A3FFC] dark:hover:border-[#8A3FFC] transition-colors">
                 <div className="w-10 h-10 bg-[#8A3FFC]/10 flex items-center justify-center rounded-[4px] mr-4"><Sparkles size={20} className="text-[#8A3FFC]" /></div>
                 <div className="text-left"><h3 className="font-bold text-sm text-[#8A3FFC] dark:text-white mb-1">AI PRD Ingestion</h3><p className="text-sm text-[#525252] dark:text-[#8D8D8D]">Upload your PRD in PDF format here.</p></div>
               </button>
