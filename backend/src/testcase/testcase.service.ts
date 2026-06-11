@@ -213,4 +213,31 @@ export class TestcaseService {
       totalPages: Math.ceil(total / limit)
     };
   }
+
+  async getPrdImportHistory(projectId: string, page: number = 1, limit: number = 5) {
+    const skip = (page - 1) * limit;
+    
+    const [data, total] = await Promise.all([
+      this.prisma.prdImportHistory.findMany({
+        where: { projectId },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          uploadedBy: {
+            select: { name: true, email: true }
+          }
+        }
+      }),
+      this.prisma.prdImportHistory.count({ where: { projectId } })
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
 }
+
