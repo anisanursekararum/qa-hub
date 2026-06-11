@@ -207,14 +207,6 @@ export class AiTestGeneratorService {
       required: ['actions'],
     };
 
-    const model = this.genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: schema,
-      },
-    });
-
     const prompt = `
       You are an expert Senior Quality Engineering Manager.
       
@@ -244,12 +236,40 @@ export class AiTestGeneratorService {
       Provide the output strictly conforming to the requested JSON schema.
     `;
 
+    const modelsToTry = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-flash-latest'
+    ];
+
     let generatedJson: any;
-    try {
-      const result = await model.generateContent(prompt);
-      generatedJson = JSON.parse(result.response.text());
-    } catch (error: any) {
-      throw new InternalServerErrorException(`Gemini generation or JSON parse failed: ${error.message}`);
+    let success = false;
+    let lastError: any = null;
+
+    for (const modelName of modelsToTry) {
+      try {
+        const model = this.genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+          },
+        });
+        const result = await model.generateContent(prompt);
+        generatedJson = JSON.parse(result.response.text());
+        success = true;
+        break;
+      } catch (error: any) {
+        console.warn(`Model ${modelName} failed in processPrdChunk, trying next: ${error.message || error}`);
+        lastError = error;
+      }
+    }
+
+    if (!success) {
+      throw new InternalServerErrorException(
+        `Gemini generation or JSON parse failed: ${lastError?.message || lastError}`
+      );
     }
 
     const actions = generatedJson.actions || [];

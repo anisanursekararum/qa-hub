@@ -84,14 +84,6 @@ export class AiGeneratorService {
         },
       };
 
-      const model = this.genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: schema,
-        },
-      });
-
       // Helper to read workspace files safely
       const readFileContent = (filename: string): string => {
         const pathsToTry = [
@@ -137,13 +129,41 @@ export class AiGeneratorService {
         For each test case, extract the functional module (moduleName and 2-5 letter uppercase code moduleCode) and provide a descriptive title, prerequisite, clear steps, expected results, and a suitable priority (HIGH, MEDIUM, or LOW).
       `;
 
-      let generatedCasesJson: any[];
-      try {
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-        generatedCasesJson = JSON.parse(responseText);
-      } catch (error: any) {
-        throw new InternalServerErrorException(`Google Gemini API generation or JSON parsing failed: ${error.message}`);
+      const modelsToTry = [
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-2.0-flash',
+        'gemini-flash-latest'
+      ];
+
+      let generatedCasesJson: any[] = [];
+      let success = false;
+      let lastError: any = null;
+
+      for (const modelName of modelsToTry) {
+        try {
+          const model = this.genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: schema,
+            },
+          });
+          const result = await model.generateContent(prompt);
+          const responseText = result.response.text();
+          generatedCasesJson = JSON.parse(responseText);
+          success = true;
+          break;
+        } catch (error: any) {
+          console.warn(`Model ${modelName} failed in generateTestCasesFromPdf, trying next: ${error.message || error}`);
+          lastError = error;
+        }
+      }
+
+      if (!success) {
+        throw new InternalServerErrorException(
+          `Google Gemini API generation or JSON parsing failed: ${lastError?.message || lastError}`
+        );
       }
 
       if (!Array.isArray(generatedCasesJson)) {
