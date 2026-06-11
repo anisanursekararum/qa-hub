@@ -1,10 +1,12 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 /// Defines the authorization level of a user inside a project workspace.
@@ -56,6 +58,12 @@ enum ExecutionStatus {
   PASSED
   /// Test case has failed. May trigger auto-retry or AI self-healing.
   FAILED
+}
+
+enum CreationSource {
+  FORM
+  BULK_UPLOAD
+  AI_GENERATED
 }
 
 /// User accounts system representing engineers, leads, and stakeholders.
@@ -181,9 +189,13 @@ model TestCase {
   hasAutomation Boolean      @default(false)
   status        CaseStatus   @default(DRAFT)
   priority      CasePriority @default(MEDIUM)
+  createdVia    CreationSource @default(FORM)
   
   /// Optional notes or comments.
   notes         String?
+
+  /// Embedding vector of 1536 dimensions for similarity search (RAG)
+  embedding     Unsupported("vector(1536)")?
 
   /// Creator's unique identifier.
   createdById String?
@@ -270,4 +282,13 @@ model PrdImportHistory {
   createdAt    DateTime @default(now())
 
   @@index([projectId])
+}
+
+/// Tracks the one-time passwords generated for user password reset operations.
+model PasswordResetOtp {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  otp       String
+  expiredAt DateTime
+  createdAt DateTime @default(now())
 }

@@ -3,11 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import LoginForm from '../components/LoginForm';
 import RegisterForm from '../components/RegisterForm';
+import ForgotPasswordForm from '../components/ForgotPasswordForm';
 
 export const AuthPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [view, setView] = useState<'login' | 'register'>(
+  const [view, setView] = useState<'login' | 'register' | 'forgot'>(
     location.pathname === '/signup' ? 'register' : 'login'
   );
   const [authenticatedUser, setAuthenticatedUser] = useState<{ name: string; email: string } | null>(null);
@@ -122,10 +123,15 @@ export const AuthPage: React.FC = () => {
                 <LoginForm
                   onSuccess={handleAuthSuccess}
                   onSwitchToRegister={() => setView('register')}
+                  onSwitchToForgotPassword={() => setView('forgot')}
                 />
-              ) : (
+              ) : view === 'register' ? (
                 <RegisterForm
                   onSuccess={handleAuthSuccess}
+                  onSwitchToLogin={() => setView('login')}
+                />
+              ) : (
+                <ForgotPasswordForm
                   onSwitchToLogin={() => setView('login')}
                 />
               )}

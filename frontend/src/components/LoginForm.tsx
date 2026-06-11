@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 interface LoginFormProps {
   onSuccess: (data: any) => void;
   onSwitchToRegister: () => void;
+  onSwitchToForgotPassword: () => void;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) => {
+export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister, onSwitchToForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
@@ -104,12 +105,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegis
             <label className="font-sans text-xs font-semibold text-[#525252] dark:text-[#E0E0E0]">
               Password
             </label>
-            <a
-              href="/forgot-password"
-              className="font-sans text-[10px] text-[#0F62FE] hover:underline"
+            <button
+              type="button"
+              onClick={onSwitchToForgotPassword}
+              className="font-sans text-[10px] text-[#0F62FE] hover:underline focus:outline-none"
             >
               Forgot?
-            </a>
+            </button>
           </div>
           <div className="relative">
             <input
