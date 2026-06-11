@@ -40,6 +40,7 @@ export class TestcaseService {
         notes: dto.notes || null,
         createdById: userId,
         updatedById: userId,
+        createdVia: 'FORM',
       },
       include: {
         module: true,
@@ -164,6 +165,7 @@ export class TestcaseService {
             notes: item.notes || null,
             createdById: userId,
             updatedById: userId,
+            createdVia: 'BULK_UPLOAD',
           }
         });
 
@@ -238,6 +240,18 @@ export class TestcaseService {
       page,
       totalPages: Math.ceil(total / limit)
     };
+  }
+
+  async createPrdImportHistory(projectId: string, userId: string, fileName: string, rowCount: number, status: string) {
+    return this.prisma.prdImportHistory.create({
+      data: {
+        projectId,
+        fileName,
+        rowCount,
+        uploadedById: userId,
+        status,
+      },
+    });
   }
 }
 

@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CaseStatus, CasePriority } from '@prisma/client';
-import pdf = require('pdf-parse');
+import { PdfParserService } from './pdf-parser.service';
 import { GoogleGenerativeAI, SchemaType, Schema } from '@google/generative-ai';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,7 +10,10 @@ import * as path from 'path';
 export class AiGeneratorService {
   private readonly genAI: GoogleGenerativeAI;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pdfParserService: PdfParserService,
+  ) {
     const apiKey = process.env.GEMINI_API_KEY;
     this.genAI = new GoogleGenerativeAI(apiKey || '');
   }
@@ -33,13 +36,7 @@ export class AiGeneratorService {
 
     try {
       // 1. PDF Text Extraction
-      let pdfText = '';
-      try {
-        const parsedPdf = await pdf(pdfBuffer);
-        pdfText = parsedPdf.text;
-      } catch (error: any) {
-        throw new BadRequestException(`Failed to extract text from PDF: ${error.message}`);
-      }
+      const pdfText = await this.pdfParserService.extractText(pdfBuffer);
 
       if (!pdfText || pdfText.trim().length === 0) {
         throw new BadRequestException('The uploaded PDF does not contain any extractable plain text.');
@@ -88,7 +85,7 @@ export class AiGeneratorService {
       };
 
       const model = this.genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: schema,

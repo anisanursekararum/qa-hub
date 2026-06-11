@@ -4,6 +4,9 @@ import { AiGeneratorService } from './ai-generator.service';
 import { CreateTestCaseDto, UpdateTestCaseDto, BulkImportTestCaseDto } from './dto/testcase.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { PdfParserService } from './pdf-parser.service';
+import { AiTestGeneratorService } from './ai-test-generator.service';
+import { TestRunGateway } from '../testrun/testrun/testrun.gateway';
 
 @Controller('testcase')
 @UseGuards(JwtAuthGuard)
@@ -11,6 +14,9 @@ export class TestcaseController {
   constructor(
     private readonly testcaseService: TestcaseService,
     private readonly aiGeneratorService: AiGeneratorService,
+    private readonly pdfParserService: PdfParserService,
+    private readonly aiTestGeneratorService: AiTestGeneratorService,
+    private readonly testRunGateway: TestRunGateway,
   ) {}
 
   @Get('bulk/history')
@@ -42,6 +48,80 @@ export class TestcaseController {
       throw new BadRequestException('PDF file is required');
     }
     return this.aiGeneratorService.generateTestCasesFromPdf(projectId, req.user.userId, file.buffer, file.originalname);
+  }
+
+  @Post('sync-prd')
+  @UseInterceptors(FileInterceptor('file'))
+  async syncPrd(
+    @Request() req: any,
+    @Query('projectId') projectId: string,
+    @UploadedFile() file: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('PDF file is required');
+    }
+
+    let status = 'SUCCESS';
+    let rowCount = 0;
+    let newCount = 0;
+    let modifiedCount = 0;
+    const results = [];
+
+    try {
+      // Emit progress event: parsing
+      this.testRunGateway.broadcastAiProgress('parsing', 'Sedang membaca dokumen PDF...');
+
+      const text = await this.pdfParserService.extractText(file.buffer);
+      const chunks = this.pdfParserService.chunkText(text);
+
+      // Emit progress event: matching
+      this.testRunGateway.broadcastAiProgress('matching', 'Membandingkan dengan test case yang ada di database...');
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+
+        // Emit progress event: generating for each chunk
+        this.testRunGateway.broadcastAiProgress(
+          'generating',
+          `Memproses bagian ${i + 1} dari ${chunks.length}: mendeteksi perubahan dan memperbarui test case...`
+        );
+
+        const result = await this.aiTestGeneratorService.processPrdChunk(projectId, req.user.userId, chunk);
+
+        if (result.action === 'NEW') {
+          newCount++;
+        } else if (result.action === 'MODIFIED') {
+          modifiedCount++;
+        }
+
+        results.push({ chunk: chunk.substring(0, 100) + '...', ...result });
+      }
+
+      rowCount = newCount + modifiedCount;
+
+      // Emit progress event: done
+      this.testRunGateway.broadcastAiProgress(
+        'done',
+        `Selesai! ${newCount} test case baru dibuat, ${modifiedCount} diperbarui.`
+      );
+
+      return results;
+    } catch (error: any) {
+      status = 'FAILED';
+      this.testRunGateway.broadcastAiProgress(
+        'done',
+        `Gagal memproses PRD: ${error.message || error}`
+      );
+      throw error;
+    } finally {
+      await this.testcaseService.createPrdImportHistory(
+        projectId,
+        req.user.userId,
+        file.originalname,
+        rowCount,
+        status
+      );
+    }
   }
 
   @Post('bulk')

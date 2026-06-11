@@ -7,6 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 @Module({
   imports: [PrismaModule],
   providers: [TestrunService, TestRunGateway],
-  controllers: [TestrunController]
+  controllers: [TestrunController],
+  exports: [TestRunGateway],
 })
 export class TestrunModule {}

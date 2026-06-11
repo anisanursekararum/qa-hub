@@ -35,4 +35,11 @@ export class TestRunGateway implements OnGatewayInit, OnGatewayConnection, OnGat
   broadcastLog(runId: string, log: string) {
     this.server.emit(`telemetry_${runId}`, { timestamp: new Date().toISOString(), log });
   }
+
+  // Broadcast AI test generation progress to all connected clients
+  broadcastAiProgress(status: string, message: string) {
+    if (this.server) {
+      this.server.emit('ai-progress', { status, message });
+    }
+  }
 }
