@@ -6,10 +6,11 @@ import { useProject } from '../context/ProjectContext';
 import { io } from 'socket.io-client';
 import {
   FilePlus, Upload, Sparkles, Filter, CheckCircle2, Clock,
-  AlertCircle, X, FileText, UploadCloud, Edit3, Trash2, Search
+  AlertCircle, X, FileText, UploadCloud, Edit3, Trash2, Search, Loader2,
+  Minimize2, Maximize2
 } from 'lucide-react';
 
-import { getProjectModules, createProjectModule, ProjectModule } from '../api/modules';
+import { getProjectModules, createProjectModule, deleteProjectModule, ProjectModule } from '../api/modules';
 import { getTestCases, createTestCase, updateTestCase, deleteTestCase, importTestCases, getImportHistory, getPrdImportHistory, TestCase, BulkTestCasePayload, ImportHistory, generateTestCasesFromPdf } from '../api/testcases';
 import { testRunsApi, TestRun } from '../api/testruns';
 import Papa from 'papaparse';
@@ -41,7 +42,7 @@ export const RepositoryPage: React.FC = () => {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filters]);
@@ -61,12 +62,25 @@ export const RepositoryPage: React.FC = () => {
   const [isViewOnlyMode, setIsViewOnlyMode] = useState(false);
   const [isAddToRunModalOpen, setIsAddToRunModalOpen] = useState(false);
 
-  // AI PRD Ingestion State
+  // AI PRD Extraction State
   const [isAiPrdOpen, setIsAiPrdOpen] = useState(false);
   const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressLogs, setProgressLogs] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [generatedCases, setGeneratedCases] = useState<TestCase[]>([]);
+  const [selectedGeneratedIds, setSelectedGeneratedIds] = useState<Set<string>>(new Set());
+  const [showIngestionSuccess, setShowIngestionSuccess] = useState(false);
+  // const [isApproving, setIsApproving] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  // Manage Modules State
+  const [isManageModulesOpen, setIsManageModulesOpen] = useState(false);
+  const [moduleSearchQuery, setModuleSearchQuery] = useState('');
+  const [isDeletingModuleId, setIsDeletingModuleId] = useState<string | null>(null);
+  const [newModuleNameInModal, setNewModuleNameInModal] = useState('');
+  const [newModuleCodeInModal, setNewModuleCodeInModal] = useState('');
+  const [isCreatingModuleInModal, setIsCreatingModuleInModal] = useState(false);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const aiLogsEndRef = React.useRef<HTMLDivElement>(null);
 
@@ -278,11 +292,23 @@ export const RepositoryPage: React.FC = () => {
     setSelectedPdfFile(file);
   };
 
+  const resetPdfImportState = () => {
+    setSelectedPdfFile(null);
+    setProgressLogs([]);
+    setGeneratedCases([]);
+    setSelectedGeneratedIds(new Set());
+    setShowIngestionSuccess(false);
+    setIsGenerating(false);
+    setIsProcessing(false);
+    setIsMinimized(false);
+    if (pdfInputRef.current) pdfInputRef.current.value = '';
+  };
+
   const handlePdfSubmit = async () => {
     if (!activeProject?.id || !selectedPdfFile) return;
     setIsGenerating(true);
     setIsProcessing(true);
-    setProgressLogs(['Menghubungkan ke server WebSocket...', 'Memulai ingestion dokumen PRD...']);
+    setProgressLogs(['Connecting to WebSocket server...', 'Starting PRD document analysis...']);
 
     const socket = io('http://localhost:3000');
 
@@ -291,26 +317,40 @@ export const RepositoryPage: React.FC = () => {
 
       if (data.status === 'done') {
         setIsProcessing(false);
-        setTimeout(async () => {
-          setIsGenerating(false);
-          setIsAiPrdOpen(false);
-          setProgressLogs([]);
-          setSelectedPdfFile(null);
-          if (pdfInputRef.current) pdfInputRef.current.value = '';
-          await loadRepositoryData();
-          fetchHistory();
-          setNotification({
-            type: 'success',
-            title: 'AI Generation Done',
-            message: 'Successfully generated test cases from PDF!'
-          });
-        }, 2000);
         socket.disconnect();
       }
     });
 
     try {
-      await generateTestCasesFromPdf(activeProject.id, selectedPdfFile);
+      const response = await generateTestCasesFromPdf(activeProject.id, selectedPdfFile);
+
+      const generatedList: TestCase[] = [];
+      if (Array.isArray(response)) {
+        for (const chunkResult of response) {
+          if (chunkResult.processedCases && Array.isArray(chunkResult.processedCases)) {
+            for (const pc of chunkResult.processedCases) {
+              if (pc.testCase) {
+                generatedList.push(pc.testCase);
+              }
+            }
+          }
+        }
+      }
+
+      setGeneratedCases(generatedList);
+      setSelectedGeneratedIds(new Set(generatedList.map(tc => tc.id)));
+      setShowIngestionSuccess(true);
+      setIsGenerating(false);
+      setIsProcessing(false);
+
+      await loadRepositoryData();
+      fetchHistory();
+
+      setNotification({
+        type: 'success',
+        title: 'AI Generation Complete',
+        message: `Successfully generated ${generatedList.length} test case(s) from PDF!`
+      });
     } catch (err: any) {
       setNotification({
         type: 'error',
@@ -325,8 +365,131 @@ export const RepositoryPage: React.FC = () => {
   };
 
   const cancelPdfImport = () => {
-    setSelectedPdfFile(null);
-    if (pdfInputRef.current) pdfInputRef.current.value = '';
+    resetPdfImportState();
+  };
+
+  const toggleGeneratedSelection = (id: string) => {
+    const next = new Set(selectedGeneratedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedGeneratedIds(next);
+  };
+
+  const toggleAllGeneratedSelection = () => {
+    if (selectedGeneratedIds.size === generatedCases.length) {
+      setSelectedGeneratedIds(new Set());
+    } else {
+      setSelectedGeneratedIds(new Set(generatedCases.map(tc => tc.id)));
+    }
+  };
+
+  /*
+  const handleApproveAllGenerated = async () => {
+    if (selectedGeneratedIds.size === 0) return;
+    setIsApproving(true);
+    try {
+      await Promise.all(
+        Array.from(selectedGeneratedIds).map(async (id) => {
+          const tc = generatedCases.find(c => c.id === id);
+          if (tc) {
+            return updateTestCase(id, {
+              title: tc.title,
+              moduleId: tc.moduleId,
+              prerequisite: tc.prerequisite || undefined,
+              steps: tc.steps,
+              expectedResult: tc.expectedResult || undefined,
+              hasAutomation: tc.hasAutomation,
+              priority: tc.priority,
+              status: 'READY',
+              notes: tc.notes || undefined
+            });
+          }
+        })
+      );
+
+      setNotification({
+        type: 'success',
+        title: 'Approval Successful',
+        message: `Successfully approved and changed status of ${selectedGeneratedIds.size} test case(s) to READY.`
+      });
+
+      await loadRepositoryData();
+      fetchHistory();
+      setIsAiPrdOpen(false);
+      resetPdfImportState();
+    } catch (err: any) {
+      console.error(err);
+      setNotification({
+        type: 'error',
+        title: 'Approval Failed',
+        message: err.message || 'Failed to change test case status to READY.'
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+  */
+
+  const handleCreateModuleInModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeProject?.id || !newModuleNameInModal || !newModuleCodeInModal) return;
+    setIsCreatingModuleInModal(true);
+    try {
+      await createProjectModule(activeProject.id, newModuleNameInModal, newModuleCodeInModal);
+      setNewModuleNameInModal('');
+      setNewModuleCodeInModal('');
+      const fetchedModules = await getProjectModules(activeProject.id);
+      setModules(fetchedModules);
+      setNotification({
+        type: 'success',
+        title: 'Module Created',
+        message: 'Successfully created a new module.'
+      });
+    } catch (err: any) {
+      console.error(err);
+      setNotification({
+        type: 'error',
+        title: 'Failed to Create Module',
+        message: err.message || 'Failed to create new module.'
+      });
+    } finally {
+      setIsCreatingModuleInModal(false);
+    }
+  };
+
+  const handleDeleteModule = async (moduleId: string) => {
+    if (!activeProject?.id) return;
+
+    const hasCases = cases.some(c => c.moduleId === moduleId);
+    if (hasCases) {
+      setNotification({
+        type: 'error',
+        title: 'Failed to Delete Module',
+        message: 'Cannot delete module: Test cases still exist in this module.'
+      });
+      return;
+    }
+
+    setIsDeletingModuleId(moduleId);
+    try {
+      await deleteProjectModule(activeProject.id, moduleId);
+      const fetchedModules = await getProjectModules(activeProject.id);
+      setModules(fetchedModules);
+      setNotification({
+        type: 'success',
+        title: 'Module Deleted',
+        message: 'Successfully deleted the module.'
+      });
+    } catch (err: any) {
+      console.error(err);
+      setNotification({
+        type: 'error',
+        title: 'Failed to Delete Module',
+        message: err.message || 'Failed to delete the module.'
+      });
+    } finally {
+      setIsDeletingModuleId(null);
+    }
   };
 
   const openCreateModal = () => {
@@ -871,22 +1034,34 @@ export const RepositoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* AI PRD Ingestion Modal */}
-      {isAiPrdOpen && (
+      {/* AI PRD Extraction Modal */}
+      {isAiPrdOpen && !isMinimized && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95">
             <div className="flex justify-between items-center p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] sticky top-0 z-10">
               <div className="flex items-center space-x-2">
                 <Sparkles size={18} className="text-[#8A3FFC]" />
-                <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">AI PRD Ingestion</h3>
+                <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">AI PRD Extraction</h3>
               </div>
-              <button 
-                onClick={() => { setIsAiPrdOpen(false); cancelPdfImport(); }} 
-                disabled={isGenerating} 
-                className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors disabled:opacity-50"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center space-x-3">
+                {isGenerating && (
+                  <button
+                    onClick={() => setIsMinimized(true)}
+                    className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors flex items-center space-x-1.5 text-xs font-semibold px-2.5 py-1.5 rounded hover:bg-[#E8E8E8] dark:hover:bg-[#2D2D39] border border-[#CCCCCC] dark:border-[#393939] focus:outline-none"
+                    title="Minimize to background to work on other features"
+                  >
+                    <Minimize2 size={14} />
+                    <span>Minimize to Background</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => { setIsAiPrdOpen(false); cancelPdfImport(); }}
+                  disabled={isGenerating}
+                  className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors disabled:opacity-50 p-1 rounded hover:bg-[#E8E8E8] dark:hover:bg-[#2D2D39] focus:outline-none"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             <div className="p-6">
               {!selectedPdfFile ? (
@@ -909,11 +1084,136 @@ export const RepositoryPage: React.FC = () => {
                     {!isGenerating && <p className="text-sm text-[#757575] mt-2">Only PDF files containing plain text specifications are supported</p>}
                   </div>
                 </>
+              ) : showIngestionSuccess ? (
+                <div className="space-y-6">
+                  {/* Title and Success banner */}
+                  <div className="p-5 border border-[#8A3FFC] bg-[#FDFBFF] dark:bg-[#1C132A]/20 rounded-[4px] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 bg-[#8A3FFC]/10 rounded-[4px] text-[#8A3FFC]">
+                        <Sparkles size={24} className="animate-pulse" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-sans font-bold text-lg text-[#161616] dark:text-white">
+                          AI Successfully Generated {generatedCases.length} Test Case(s)!
+                        </h4>
+                        <p className="text-sm text-[#525252] dark:text-[#A8A8A8] mt-1">
+                          Newly created test cases are in <strong className="text-[#F1C21B]">DRAFT</strong> status and marked as <strong className="text-[#8A3FFC]">AI Generated</strong>. Please review and select test cases below to approve.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Left Column: Cool Terminal logs */}
+                    <div className="flex flex-col h-[400px]">
+                      <div className="w-full bg-[#161616] border border-[#393939] rounded-[4px] shadow-sm flex flex-col text-left h-full">
+                        <div className="p-3 border-b border-[#393939] bg-[#000000] flex justify-between items-center">
+                          <h5 className="font-mono font-bold text-xs text-[#8A3FFC] flex items-center">
+                            <span className="w-2 h-2 rounded-full bg-[#24A148] mr-2"></span>
+                            AI PROCESSING LOGS (COMPLETED)
+                          </h5>
+                          <span className="font-mono text-[10px] text-[#757575]">SOCKET.IO FEED</span>
+                        </div>
+                        <div className="p-4 flex-1 overflow-y-auto font-mono text-xs text-[#A8A8A8] space-y-1.5 bg-[#121212]">
+                          {progressLogs.map((log, index) => (
+                            <div key={index} className="flex space-x-2">
+                              <span className="text-[#525252] shrink-0">&gt;</span>
+                              <span className={log.includes('Done') || log.includes('Done!') ? 'text-[#24A148]' : 'text-[#E0E0E0]'}>{log}</span>
+                            </div>
+                          ))}
+                          <div className="flex space-x-2">
+                            <span className="text-[#24A148] shrink-0">&gt;</span>
+                            <span className="text-[#24A148] font-bold">Extraction process completed successfully.</span>
+                          </div>
+                          <div ref={aiLogsEndRef} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Extraction Success Checklist */}
+                    <div className="flex flex-col border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] bg-[#F7F7F7] dark:bg-[#121212] p-5 h-[400px]">
+                      <div className="flex justify-between items-center pb-3 border-b border-[#E0E0E0] dark:border-[#393939] mb-3">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="selectAllGenerated"
+                            onChange={toggleAllGeneratedSelection}
+                            checked={generatedCases.length > 0 && selectedGeneratedIds.size === generatedCases.length}
+                            ref={input => {
+                              if (input) {
+                                const someSelected = selectedGeneratedIds.size > 0;
+                                const allSelected = selectedGeneratedIds.size === generatedCases.length;
+                                input.indeterminate = someSelected && !allSelected;
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-[#0F62FE] border-gray-300 focus:ring-[#0F62FE] bg-white dark:bg-[#1C1C21]"
+                          />
+                          <label htmlFor="selectAllGenerated" className="font-sans text-sm font-bold text-[#161616] dark:text-white cursor-pointer select-none">
+                            Select All ({selectedGeneratedIds.size}/{generatedCases.length})
+                          </label>
+                        </div>
+                        <span className="text-xs font-mono text-[#8D8D8D]">DRAFT & AI GENERATED</span>
+                      </div>
+
+                      {/* Scrollable list */}
+                      <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-left">
+                        {generatedCases.length === 0 ? (
+                          <div className="text-center py-12 text-sm text-[#757575] dark:text-[#8D8D8D]">No test cases were successfully generated.</div>
+                        ) : (
+                          generatedCases.map((tc) => (
+                            <div key={tc.id} className="flex items-start space-x-3 p-3 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] hover:border-[#8A3FFC] transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={selectedGeneratedIds.has(tc.id)}
+                                onChange={() => toggleGeneratedSelection(tc.id)}
+                                className="w-4 h-4 rounded mt-0.5 text-[#0F62FE] border-gray-300 focus:ring-[#0F62FE] bg-[#F4F4F4] dark:bg-[#1C1C21]"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-mono text-xs font-bold text-[#0F62FE]">{tc.publicId}</span>
+                                  <span className="font-mono text-[10px] text-[#DA1E28] border border-[#DA1E28]/30 px-1 py-0.2 rounded-[2px]">{tc.priority}</span>
+                                </div>
+                                <h5 className="font-sans text-xs font-semibold text-[#161616] dark:text-white mt-1 truncate">{tc.title}</h5>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <span className="font-mono text-[9px] text-[#8D8D8D] border border-[#525252] px-1 rounded-[2px]">Status: {tc.status}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Bulk action buttons */}
+                      {/* <div className="mt-4 pt-4 border-t border-[#E0E0E0] dark:border-[#393939] flex justify-end space-x-3 bg-transparent">
+                        <button
+                          onClick={resetPdfImportState}
+                          className="px-4 py-2 font-sans font-semibold text-xs text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white transition-colors"
+                        >
+                          Cancel / Close
+                        </button>
+                        <button
+                          onClick={handleApproveAllGenerated}
+                          disabled={selectedGeneratedIds.size === 0 || isApproving}
+                          className="px-4 py-2 font-sans font-semibold text-xs text-white bg-[#8A3FFC] hover:bg-[#742de6] disabled:opacity-50 disabled:cursor-not-allowed rounded-[4px] transition-colors shadow-sm flex items-center space-x-2"
+                        >
+                          {isApproving ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <span>Approve & Change Status to READY</span>
+                          )}
+                        </button>
+                      </div> */}
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="mb-8 p-6 border border-[#8A3FFC] bg-[#FDFBFF] dark:bg-[#1C132A]/20 rounded-[4px] flex flex-col items-center justify-center animate-in zoom-in-95">
                   <FileText size={48} className="text-[#8A3FFC] mb-4 animate-pulse" />
                   <h4 className="font-sans font-bold text-[#161616] dark:text-white mb-2">{selectedPdfFile?.name}</h4>
-                  
+
                   {!isGenerating ? (
                     <>
                       <p className="text-sm text-[#525252] dark:text-[#A8A8A8] mb-6 text-center max-w-md">
@@ -924,7 +1224,7 @@ export const RepositoryPage: React.FC = () => {
                           Cancel
                         </button>
                         <button onClick={handlePdfSubmit} className="px-6 py-2 font-sans font-semibold text-sm text-white bg-[#8A3FFC] hover:bg-[#742de6] rounded-[4px] transition-colors shadow-sm flex items-center space-x-2">
-                          <span>Submit Ingestion</span>
+                          <span>Start Extraction</span>
                         </button>
                       </div>
                     </>
@@ -953,7 +1253,7 @@ export const RepositoryPage: React.FC = () => {
                           {progressLogs.map((log, index) => (
                             <div key={index} className="flex space-x-2">
                               <span className="text-[#525252] shrink-0">&gt;</span>
-                              <span className={log.includes('Selesai') ? 'text-[#24A148]' : 'text-[#E0E0E0]'}>{log}</span>
+                              <span className={log.includes('Done') ? 'text-[#24A148]' : 'text-[#E0E0E0]'}>{log}</span>
                             </div>
                           ))}
                           {isProcessing && (
@@ -1065,7 +1365,7 @@ export const RepositoryPage: React.FC = () => {
               </button>
               <button onClick={() => setIsAiPrdOpen(true)} className="flex items-start p-5 bg-[#F6F2FF] dark:bg-[#121212] border-2 border-dashed border-[#8A3FFC]/50 rounded-[4px] group hover:border-[#8A3FFC] dark:hover:border-[#8A3FFC] transition-colors">
                 <div className="w-10 h-10 bg-[#8A3FFC]/10 flex items-center justify-center rounded-[4px] mr-4"><Sparkles size={20} className="text-[#8A3FFC]" /></div>
-                <div className="text-left"><h3 className="font-bold text-sm text-[#8A3FFC] dark:text-white mb-1">AI PRD Ingestion</h3><p className="text-sm text-[#525252] dark:text-[#8D8D8D]">Upload your PRD in PDF format here.</p></div>
+                <div className="text-left"><h3 className="font-bold text-sm text-[#8A3FFC] dark:text-white mb-1">AI PRD Extraction</h3><p className="text-sm text-[#525252] dark:text-[#8D8D8D]">Upload your PRD in PDF format here.</p></div>
               </button>
             </div>
 
@@ -1136,6 +1436,56 @@ export const RepositoryPage: React.FC = () => {
               </div>
             )}
 
+            {/* Select All & Module Management Toolbar */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 px-1">
+              <div className="flex items-center space-x-2 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] px-3 py-1.5 shadow-sm">
+                <input
+                  type="checkbox"
+                  id="select-all-global"
+                  checked={filteredCases.length > 0 && filteredCases.every(c => selectedIds.has(c.id))}
+                  ref={input => {
+                    if (input) {
+                      const someSelected = filteredCases.some(c => selectedIds.has(c.id));
+                      const allSelected = filteredCases.every(c => selectedIds.has(c.id));
+                      input.indeterminate = someSelected && !allSelected;
+                    }
+                  }}
+                  onChange={() => {
+                    const allSelected = filteredCases.every(c => selectedIds.has(c.id));
+                    const next = new Set(selectedIds);
+                    if (allSelected) {
+                      filteredCases.forEach(c => next.delete(c.id));
+                    } else {
+                      filteredCases.forEach(c => next.add(c.id));
+                    }
+                    setSelectedIds(next);
+                  }}
+                  className="w-4 h-4 rounded text-[#0F62FE] border-gray-300 focus:ring-[#0F62FE] bg-white dark:bg-[#1C1C21]"
+                />
+                <label htmlFor="select-all-global" className="font-sans text-sm font-semibold text-[#161616] dark:text-white select-none cursor-pointer">
+                  Select All Test Cases ({filteredCases.length} item(s))
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
+                {selectedIds.size > 0 && (
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-xs font-semibold text-[#DA1E28] hover:underline"
+                  >
+                    Deselect All ({selectedIds.size})
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsManageModulesOpen(true)}
+                  className="flex items-center space-x-1.5 bg-white dark:bg-[#1C1C21] hover:bg-[#F4F4F4] dark:hover:bg-[#2D2D39] text-[#161616] dark:text-white border border-[#E0E0E0] dark:border-[#2D2D39] px-3.5 py-1.5 rounded-[4px] text-sm font-semibold transition-colors shadow-sm animate-in fade-in"
+                >
+                  <Filter size={14} className="text-[#0F62FE]" />
+                  <span>Manage Modules</span>
+                </button>
+              </div>
+            </div>
+
             {/* List with Checkboxes */}
             <div className="space-y-6">
               {Object.entries(groupedCases).map(([moduleName, moduleCases]) => (
@@ -1185,11 +1535,11 @@ export const RepositoryPage: React.FC = () => {
                 </div>
               ))}
             </div>
-            
+
             {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="mt-8 flex items-center justify-between px-4 py-3 border border-[#E0E0E0] dark:border-[#393939] bg-white dark:bg-[#1C1C21] rounded-[4px] shadow-sm">
-                <button 
+                <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => p - 1)}
                   className="text-sm font-semibold text-[#0F62FE] disabled:text-[#A8A8A8] disabled:cursor-not-allowed"
@@ -1199,7 +1549,7 @@ export const RepositoryPage: React.FC = () => {
                 <span className="text-sm text-[#525252] dark:text-[#8D8D8D] font-mono">
                   Page {currentPage} of {totalPages}
                 </span>
-                <button 
+                <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(p => p + 1)}
                   className="text-sm font-semibold text-[#0F62FE] disabled:text-[#A8A8A8] disabled:cursor-not-allowed"
@@ -1335,10 +1685,155 @@ export const RepositoryPage: React.FC = () => {
         </div>
       )}
 
+      {/* Manage Modules Modal */}
+      {isManageModulesOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95">
+            <div className="flex justify-between items-center p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] sticky top-0 z-10">
+              <div className="flex items-center space-x-2">
+                <Filter size={18} className="text-[#0F62FE]" />
+                <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">Kelola Modul</h3>
+              </div>
+              <button
+                onClick={() => { setIsManageModulesOpen(false); setModuleSearchQuery(''); }}
+                className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Add Module Form */}
+              <form onSubmit={handleCreateModuleInModal} className="bg-[#F7F7F7] dark:bg-[#121212] p-4 rounded-[4px] border border-[#E0E0E0] dark:border-[#393939] text-left">
+                <h4 className="font-sans font-bold text-sm text-[#161616] dark:text-white mb-3 uppercase tracking-wider">Add New Module</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                  <div className="md:col-span-1.5">
+                    <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] mb-1">Module Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Shopping Cart"
+                      value={newModuleNameInModal}
+                      onChange={e => setNewModuleNameInModal(e.target.value)}
+                      className="w-full bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-1.5 font-sans text-sm text-[#161616] dark:text-white focus:outline-none focus:border-[#0F62FE]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-sans text-xs font-semibold text-[#525252] dark:text-[#A8A8A8] mb-1">Module Code</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. CART"
+                      value={newModuleCodeInModal}
+                      onChange={e => setNewModuleCodeInModal(e.target.value)}
+                      className="w-full bg-white dark:bg-[#1C1C21] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-1.5 font-mono text-sm text-[#161616] dark:text-white focus:outline-none uppercase"
+                    />
+                  </div>
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={isCreatingModuleInModal}
+                      className="w-full bg-[#0F62FE] hover:bg-[#0353E9] disabled:opacity-50 text-white font-sans font-semibold text-sm px-4 py-2 rounded-[4px] transition-colors shadow-sm flex items-center justify-center space-x-1.5"
+                    >
+                      {isCreatingModuleInModal ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <span>Add</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Daftar Modul dengan Pencarian */}
+              <div className="space-y-4 text-left">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-sans font-bold text-sm text-[#161616] dark:text-white uppercase tracking-wider">Module List</h4>
+                  <span className="text-xs text-[#757575] dark:text-[#8D8D8D]">Total: {modules.length} module(s)</span>
+                </div>
+
+                {/* Search Bar Modul */}
+                <div className="flex items-center bg-[#F4F4F4] dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] px-3 py-1.5 w-full">
+                  <Search size={14} className="text-[#757575] dark:text-[#8D8D8D] mr-2 flex-shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search module by name or code..."
+                    value={moduleSearchQuery}
+                    onChange={e => setModuleSearchQuery(e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm text-[#161616] dark:text-white w-full placeholder-[#A8A8A8]"
+                  />
+                </div>
+
+                {/* List Modul */}
+                <div className="border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] overflow-hidden bg-white dark:bg-[#1C1C21]">
+                  <div className="max-h-60 overflow-y-auto divide-y divide-[#E0E0E0] dark:divide-[#2D2D39]">
+                    {(() => {
+                      const filteredModules = modules.filter(m =>
+                        m.name.toLowerCase().includes(moduleSearchQuery.toLowerCase()) ||
+                        m.code.toLowerCase().includes(moduleSearchQuery.toLowerCase())
+                      );
+
+                      if (filteredModules.length === 0) {
+                        return <div className="p-8 text-center text-sm text-[#757575] dark:text-[#8D8D8D]">No matching modules found.</div>;
+                      }
+
+                      return filteredModules.map(m => {
+                        const tcCount = cases.filter(c => c.moduleId === m.id).length;
+                        const isDeleting = isDeletingModuleId === m.id;
+
+                        return (
+                          <div key={m.id} className="flex justify-between items-center p-3 hover:bg-[#F9F9F9] dark:hover:bg-[#161616]/50 transition-colors">
+                            <div className="flex items-center space-x-3">
+                              <span className="font-mono text-xs font-bold bg-[#E0E0E0] dark:bg-[#2D2D39] px-2 py-0.5 rounded text-[#161616] dark:text-white">{m.code}</span>
+                              <div>
+                                <span className="text-sm font-semibold text-[#161616] dark:text-white">{m.name}</span>
+                                <span className="text-xs text-[#8D8D8D] ml-2">({tcCount} test case(s))</span>
+                              </div>
+                            </div>
+                            <div>
+                              {tcCount === 0 ? (
+                                <button
+                                  onClick={() => handleDeleteModule(m.id)}
+                                  disabled={isDeleting}
+                                  className="text-[#DA1E28] hover:text-[#BA1B23] p-1.5 rounded-full hover:bg-[#DA1E28]/10 transition-colors"
+                                  title="Delete empty module"
+                                >
+                                  {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                </button>
+                              ) : (
+                                <button
+                                  disabled
+                                  className="text-[#8D8D8D] opacity-40 p-1.5 rounded-full cursor-not-allowed"
+                                  title="Module cannot be deleted because it contains test cases"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] flex justify-end">
+              <button
+                onClick={() => { setIsManageModulesOpen(false); setModuleSearchQuery(''); }}
+                className="px-5 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] rounded-[4px] transition-colors shadow-sm"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {notification && (
-        <div className={`fixed top-6 right-6 z-[200] max-w-md w-full bg-white dark:bg-[#1C1C21] border-l-4 shadow-2xl p-4 rounded-[4px] animate-in slide-in-from-top-10 flex items-start space-x-3 ${
-          notification.type === 'success' ? 'border-[#24A148]' : 'border-[#DA1E28]'
-        }`}>
+        <div className={`fixed top-6 right-6 z-[200] max-w-md w-full bg-white dark:bg-[#1C1C21] border-l-4 shadow-2xl p-4 rounded-[4px] animate-in slide-in-from-top-10 flex items-start space-x-3 ${notification.type === 'success' ? 'border-[#24A148]' : 'border-[#DA1E28]'
+          }`}>
           <div className={`flex-shrink-0 mt-0.5 ${notification.type === 'success' ? 'text-[#24A148]' : 'text-[#DA1E28]'}`}>
             {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
           </div>
@@ -1349,6 +1844,80 @@ export const RepositoryPage: React.FC = () => {
           <button onClick={() => setNotification(null)} className="text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white flex-shrink-0">
             <X size={16} />
           </button>
+        </div>
+      )}
+
+      {/* Floating AI PRD Progress Panel (Minimized Mode) */}
+      {isAiPrdOpen && isMinimized && (
+        <div className="fixed bottom-6 right-6 z-[100] w-96 bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-2xl animate-in slide-in-from-bottom-8 overflow-hidden text-left">
+          <div className="p-4 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <Sparkles size={16} className={`text-[#8A3FFC] ${isGenerating ? 'animate-pulse' : ''}`} />
+              <span className="font-sans font-bold text-sm text-[#161616] dark:text-white">
+                {showIngestionSuccess ? 'AI Generation Complete' : 'AI Test Case Generation'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-1.5">
+              {/* Maximize Button */}
+              <button
+                onClick={() => setIsMinimized(false)}
+                title="Expand to Full View"
+                className="p-1 text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white rounded hover:bg-[#E8E8E8] dark:hover:bg-[#2D2D39] transition-colors focus:outline-none"
+              >
+                <Maximize2 size={16} />
+              </button>
+              {/* Close/Cancel Button */}
+              <button
+                onClick={() => { setIsAiPrdOpen(false); cancelPdfImport(); }}
+                disabled={isGenerating && !showIngestionSuccess} // Allow close if done, or cancel if not actively generating
+                className="p-1 text-[#757575] hover:text-[#161616] dark:text-[#8D8D8D] dark:hover:text-white rounded hover:bg-[#E8E8E8] dark:hover:bg-[#2D2D39] transition-colors disabled:opacity-50 focus:outline-none"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {isGenerating ? (
+              <>
+                <div className="flex items-center space-x-3">
+                  <div className="shrink-0">
+                    <svg className="animate-spin h-5 w-5 text-[#8A3FFC]" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-sans text-xs font-semibold text-[#161616] dark:text-white truncate">
+                      {isProcessing ? 'AI Processing document...' : 'Finalizing generation...'}
+                    </p>
+                    <p className="font-mono text-[10px] text-[#757575] dark:text-[#8D8D8D] mt-0.5 truncate bg-[#161616]/5 dark:bg-[#121212] p-1 rounded font-normal">
+                      {progressLogs.length > 0 ? progressLogs[progressLogs.length - 1] : 'Initializing...'}
+                    </p>
+                  </div>
+                </div>
+                {/* Progress bar or mini status logs */}
+                <div className="w-full bg-[#E0E0E0] dark:bg-[#393939] h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-[#8A3FFC] h-full animate-pulse w-3/4"></div>
+                </div>
+              </>
+            ) : showIngestionSuccess ? (
+              <div className="space-y-3">
+                <p className="font-sans text-xs text-[#161616] dark:text-[#E0E0E0]">
+                  Successfully generated <strong className="text-[#8A3FFC]">{generatedCases.length}</strong> test cases!
+                </p>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={() => { setIsMinimized(false); }}
+                    className="px-3 py-1.5 font-sans font-semibold text-xs text-white bg-[#8A3FFC] hover:bg-[#742de6] rounded-[4px] transition-colors shadow-sm focus:outline-none"
+                  >
+                    Review & Approve
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="font-sans text-xs text-[#757575]">No active process.</p>
+            )}
+          </div>
         </div>
       )}
 

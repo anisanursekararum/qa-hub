@@ -8,12 +8,19 @@ initializeTheme();
 
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
-  window.dispatchEvent(new Event('apiLoadStart'));
+  const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+  const isSyncPrd = url.includes('/testcase/sync-prd');
+
+  if (!isSyncPrd) {
+    window.dispatchEvent(new Event('apiLoadStart'));
+  }
   try {
     const response = await originalFetch(...args);
     return response;
   } finally {
-    window.dispatchEvent(new Event('apiLoadEnd'));
+    if (!isSyncPrd) {
+      window.dispatchEvent(new Event('apiLoadEnd'));
+    }
   }
 };
 

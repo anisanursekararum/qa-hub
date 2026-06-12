@@ -70,7 +70,7 @@ Within each project, QA-Hub provides a smart Test Repository that supports manua
 1. **Project Admin:** The project creator automatically becomes an Admin. They have the right to add other users directly via email, generate a unique Join Code, and promote a Member to Admin. Project Admins can revoke Member access at any time. To safeguard company test assets, test cases created by the removed Member are retained (data retention) while their creator field is set to null or reassigned.   
 2. **Member:** Can join a project via a Join Code. They have full rights for testing operations but cannot change their own or anyone else's role to Admin.  
 2. **Test Repository Management**  
-   * **Multi-Method Data Ingestion:** The system must provide three paths for test case entry: manual form entry, bulk upload via CSV files, and artificial intelligence generation (AI-generated).  
+   * **Multi-Method Data Extraction:** The system must provide three paths for test case entry: manual form entry, bulk upload via CSV files, and artificial intelligence generation (AI-generated).  
    * **AI PRD Analysis & Impact Detection:** The system must be capable of extracting PRD documents (PDF) into new test scenarios, as well as analyzing which existing test cases are related to or impacted by the PRD to suggest content updates.  
    * Test Case Status Lifecycle (State Machine Gate):  
      1. DRAFT Status: All new test cases (manual, CSV, or AI) automatically default to DRAFT status. In this status, the test case is locked and cannot be added to a Test Run. Users can view, review, and edit during this phase.  
@@ -225,7 +225,7 @@ Within each project, QA-Hub provides a smart Test Repository that supports manua
 
    * Leverages GitHub Actions CI/CD (Free 2,000 minutes/month). The heavy computational load required to run headless browsers (I use Playwright) is shifted entirely to GitHub Actions, ensuring the core backend server remains lightweight and responsive.  
      * Selects Supabase Vector (pgvector) as the storage for AI data embeddings (free, built into PostgreSQL) and Cloudflare R2 (free storage up to 10 GB) as a secure hosting repository for office PDF PRD documents with zero data transfer (egress) fees.   
-     * **AI PRD Ingestion:** Uploaded PDF files are converted into plain text using the pdf-parse library. This text is then passed to an LLM using a RAG (Retrieval-Augmented Generation) approach. The LLM is instructed with a strict JSON schema to generate new test case structures and compare them against vector embeddings of legacy test cases to detect functional impacts.  
+     * **AI PRD Extraction:** Uploaded PDF files are converted into plain text using the pdf-parse library. This text is then passed to an LLM using a RAG (Retrieval-Augmented Generation) approach. The LLM is instructed with a strict JSON schema to generate new test case structures and compare them against vector embeddings of legacy test cases to detect functional impacts.  
      * **AI Self-Healing Engine:** When a GitHub Actions runner detects a test script failure (for example, TimeoutError: waiting for locator('button\#submit')), a specialized script captures:  
 * The error stack trace.  
 * A screenshot of the page at the exact moment of failure.  
