@@ -5,7 +5,7 @@ import { StatCard } from '../components/dashboard/StatCard';
 import { ProjectCard } from '../components/dashboard/ProjectCard';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { PerformanceTable } from '../components/dashboard/PerformanceTable';
-import { AiInsightsCard } from '../components/dashboard/AiInsightsCard';
+// import { AiInsightsCard } from '../components/dashboard/AiInsightsCard';
 import { Activity, Zap, Bug, CheckSquare } from 'lucide-react';
 import { dashboardApi, DashboardSummary } from '../api/dashboard';
 
@@ -163,9 +163,10 @@ export const DashboardPage: React.FC = () => {
               <ActivityFeed activities={summary?.activities || []} />
             </section>
 
-            <section>
+            {/* Hiding AI Insights card temporarily */}
+            {/* <section>
               <AiInsightsCard />
-            </section>
+            </section> */}
           </div>
 
         </div>
