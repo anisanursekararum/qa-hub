@@ -70,13 +70,19 @@ export const DashboardPage: React.FC = () => {
             subtitle={<span className="text-[#0F62FE] font-bold">Currently executing</span>}
             icon={<Activity size={14} />}
             colorName="blue"
+            description="The number of test execution runs currently active in the system."
           />
           <StatCard
             title="AI Efficiency"
-            value="--"
-            subtitle={<span className="text-[#161616] dark:text-[#E0E0E0] font-semibold">Coming Soon</span>}
+            value={loading ? '-' : `${summary?.stats.aiEfficiency || 0}%`}
+            subtitle={
+              <div className="w-full bg-[#E0E0E0] dark:bg-[#393939] h-1.5 mt-2 rounded-full overflow-hidden">
+                <div className="bg-[#8A3FFC] h-full" style={{ width: `${summary?.stats.aiEfficiency || 0}%` }}></div>
+              </div>
+            }
             icon={<Zap size={14} className="text-[#8A3FFC]" />}
             colorName="purple"
+            description="The percentage of total test cases generated automatically by AI."
           />
           <StatCard
             title="Failed Cases"
@@ -84,6 +90,7 @@ export const DashboardPage: React.FC = () => {
             subtitle={<span className="text-[#DA1E28] font-bold">In active runs</span>}
             icon={<Bug size={14} className="text-[#DA1E28]" />}
             colorName="red"
+            description="The total number of failed test cases across all active runs."
           />
           <StatCard
             title="Test Coverage"
@@ -95,6 +102,7 @@ export const DashboardPage: React.FC = () => {
             }
             icon={<CheckSquare size={14} />}
             colorName="green"
+            description="The percentage of test cases that have automated script coverage."
           />
         </div>
 

@@ -6,6 +6,7 @@ interface StatCardProps {
   subtitle?: React.ReactNode;
   icon?: React.ReactNode;
   colorName?: 'blue' | 'purple' | 'red' | 'green'; 
+  description?: string;
 }
 
 const styles = {
@@ -15,18 +16,22 @@ const styles = {
   green: { bg: 'bg-[#24A148]', hoverBorder: 'hover:border-[#24A148] dark:hover:border-[#24A148]', hoverText: 'group-hover:text-[#24A148]' },
 };
 
-export const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, colorName }) => {
+export const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, colorName, description }) => {
   const theme = colorName ? styles[colorName] : null;
 
   return (
-    <div className={`relative bg-[#F7F7F7] dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] p-5 overflow-hidden flex flex-col justify-between min-h-[110px] transition-all duration-200 cursor-pointer group ${theme ? theme.hoverBorder : 'hover:border-[#0F62FE] dark:hover:border-[#0F62FE]'}`}>
+    <div className={`relative bg-[#F7F7F7] dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#2D2D39] rounded-[4px] p-5 overflow-hidden flex flex-col justify-between min-h-[140px] transition-all duration-200 cursor-pointer group ${theme ? theme.hoverBorder : 'hover:border-[#0F62FE] dark:hover:border-[#0F62FE]'}`}>
       {theme && <div className={`absolute top-0 left-0 w-1 h-full ${theme.bg}`}></div>}
-      <div className="flex justify-between items-start mb-2 pl-2">
-        <h3 className={`font-mono text-xs font-bold text-[#525252] dark:text-[#8D8D8D] uppercase tracking-wider transition-colors ${theme ? theme.hoverText : 'group-hover:text-[#0F62FE]'}`}>{title}</h3>
+      <div className="flex justify-between items-start mb-3 pl-2">
+        <div className="flex-1 pr-4">
+          <h3 className={`font-mono text-sm font-bold text-[#525252] dark:text-[#8D8D8D] uppercase tracking-wider transition-colors ${theme ? theme.hoverText : 'group-hover:text-[#0F62FE]'}`}>{title}</h3>
+          {description && <p className="font-sans text-xs text-[#757575] dark:text-[#8D8D8D] mt-1 leading-normal">{description}</p>}
+        </div>
+        {icon && <div className="text-[#525252] dark:text-[#A8A8A8] group-hover:scale-110 transition-transform duration-200">{icon}</div>}
       </div>
       <div className="pl-2 flex items-end space-x-3">
         <p className="font-sans font-bold text-4xl text-[#161616] dark:text-white leading-none tracking-tight">{value}</p>
-        {subtitle && <div className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D] pb-1">{subtitle}</div>}
+        {subtitle && <div className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D] pb-1 w-full">{subtitle}</div>}
       </div>
     </div>
   );

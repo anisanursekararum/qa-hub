@@ -14,6 +14,7 @@ export interface DashboardSummary {
     activeRuns: number;
     openDefects: number;
     testCoverage: number;
+    aiEfficiency: number;
   };
   projects: {
     id: string;

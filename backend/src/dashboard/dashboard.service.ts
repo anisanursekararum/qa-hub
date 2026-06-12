@@ -40,15 +40,19 @@ export class DashboardService {
       },
     });
 
-    // 4. Test Coverage
+    // 4. Test Coverage & AI Efficiency
     const totalCases = await this.prisma.testCase.count({
       where: { projectId: { in: projectIds } },
     });
     const automatedCases = await this.prisma.testCase.count({
       where: { projectId: { in: projectIds }, hasAutomation: true },
     });
+    const aiCases = await this.prisma.testCase.count({
+      where: { projectId: { in: projectIds }, createdVia: 'AI_GENERATED' },
+    });
     
     const testCoverage = totalCases > 0 ? Math.round((automatedCases / totalCases) * 100) : 0;
+    const aiEfficiency = totalCases > 0 ? Math.round((aiCases / totalCases) * 100) : 0;
 
     // 5. Projects with member count
     const projectsData = await this.prisma.project.findMany({
@@ -174,7 +178,8 @@ export class DashboardService {
       stats: {
         activeRuns: activeRunsCount,
         openDefects: failedTestsCount,
-        testCoverage: testCoverage
+        testCoverage: testCoverage,
+        aiEfficiency: aiEfficiency
       },
       projects,
       activities,
@@ -184,7 +189,7 @@ export class DashboardService {
 
   private emptySummary() {
     return {
-      stats: { activeRuns: 0, openDefects: 0, testCoverage: 0 },
+      stats: { activeRuns: 0, openDefects: 0, testCoverage: 0, aiEfficiency: 0 },
       projects: [],
       activities: [],
       performance: []
