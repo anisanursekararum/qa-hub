@@ -29,3 +29,14 @@ export const createProjectModule = async (projectId: string, name: string, code:
   }
   return res.json();
 };
+
+export const deleteProjectModule = async (projectId: string, moduleId: string): Promise<void> => {
+  const res = await fetch(`${API_URL}/project/${projectId}/modules/${moduleId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Failed to delete module');
+  }
+};

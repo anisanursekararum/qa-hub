@@ -3,7 +3,41 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CaseStatus, CasePriority } from '@prisma/client';
 import { GoogleGenerativeAI, SchemaType, Schema } from '@google/generative-ai';
 
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 1000,
+  backoffFactor = 2
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const errorMsg = error?.message || '';
+    const isQuotaExceeded = errorMsg.includes('exceeded your current quota') ||
+                            errorMsg.includes('Quota exceeded') ||
+                            errorMsg.includes('QuotaFailure');
+    const isTransient = !isQuotaExceeded && (
+                        errorMsg.includes('503') || 
+                        errorMsg.includes('Service Unavailable') || 
+                        errorMsg.includes('429') || 
+                        errorMsg.includes('Too Many Requests') ||
+                        errorMsg.includes('experiencing high demand') ||
+                        errorMsg.includes('fetch failed') ||
+                        errorMsg.includes('ETIMEDOUT') ||
+                        errorMsg.includes('ECONNRESET') ||
+                        errorMsg.includes('socket hang up')
+    );
+    if (retries > 0 && isTransient) {
+      console.warn(`Transient Gemini API/network error: ${errorMsg}. Retrying in ${delayMs}ms... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      return retryWithBackoff(fn, retries - 1, delayMs * backoffFactor, backoffFactor);
+    }
+    throw error;
+  }
+}
+
 @Injectable()
+
 export class AiTestGeneratorService {
   private readonly genAI: GoogleGenerativeAI;
 
@@ -21,7 +55,7 @@ export class AiTestGeneratorService {
     }
     try {
       const model = this.genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
-      const result = await model.embedContent(text);
+      const result = await retryWithBackoff(() => model.embedContent(text));
       const values = result.embedding.values;
       
       // Pad with zeros to 1536 dimensions to match schema.prisma vector(1536) constraint
@@ -99,6 +133,46 @@ export class AiTestGeneratorService {
     );
 
     return createdCase;
+  }
+
+  private async generateWithDeepSeek(prompt: string, jsonSchema: any): Promise<string> {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      throw new Error('DEEPSEEK_API_KEY is not configured.');
+    }
+
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert Senior Quality Engineering Manager. You must strictly output your response as a valid JSON object matching this schema: ${JSON.stringify(jsonSchema)}`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: {
+          type: 'json_object'
+        },
+        temperature: 0.2
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`DeepSeek API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data: any = await response.json();
+    return data.choices[0].message.content;
   }
 
   /**
@@ -240,6 +314,7 @@ export class AiTestGeneratorService {
       'gemini-2.5-flash',
       'gemini-2.5-flash-lite',
       'gemini-2.0-flash',
+      'gemini-1.5-flash',
       'gemini-flash-latest'
     ];
 
@@ -247,28 +322,52 @@ export class AiTestGeneratorService {
     let success = false;
     let lastError: any = null;
 
-    for (const modelName of modelsToTry) {
+    // Try DeepSeek first if configured
+    if (process.env.DEEPSEEK_API_KEY) {
       try {
-        const model = this.genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-          },
-        });
-        const result = await model.generateContent(prompt);
-        generatedJson = JSON.parse(result.response.text());
+        console.log('Using DeepSeek for text generation...');
+        const resultText = await retryWithBackoff(() => this.generateWithDeepSeek(prompt, schema));
+        generatedJson = JSON.parse(resultText);
         success = true;
-        break;
       } catch (error: any) {
-        console.warn(`Model ${modelName} failed in processPrdChunk, trying next: ${error.message || error}`);
+        console.warn(`DeepSeek generation failed, falling back to Gemini: ${error.message || error}`);
         lastError = error;
+      }
+    }
+
+    // Fallback to Gemini if DeepSeek is not configured or failed
+    if (!success) {
+      console.log('Using Gemini for text generation...');
+      for (const modelName of modelsToTry) {
+        try {
+          const model = this.genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: schema,
+            },
+          });
+          const result = await retryWithBackoff(() => model.generateContent(prompt));
+          generatedJson = JSON.parse(result.response.text());
+          success = true;
+          break;
+        } catch (error: any) {
+          const errorMsg = error?.message || '';
+          const isQuotaExceeded = errorMsg.includes('exceeded your current quota') ||
+                                  errorMsg.includes('Quota exceeded') ||
+                                  errorMsg.includes('QuotaFailure');
+          if (isQuotaExceeded) {
+            throw error;
+          }
+          console.warn(`Model ${modelName} failed in processPrdChunk, trying next: ${errorMsg}`);
+          lastError = error;
+        }
       }
     }
 
     if (!success) {
       throw new InternalServerErrorException(
-        `Gemini generation or JSON parse failed: ${lastError?.message || lastError}`
+        `AI generation or JSON parse failed: ${lastError?.message || lastError}`
       );
     }
 

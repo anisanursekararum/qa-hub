@@ -67,6 +67,7 @@ describe('AiTestGeneratorService', () => {
   };
 
   beforeEach(async () => {
+    delete process.env.DEEPSEEK_API_KEY;
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AiTestGeneratorService,

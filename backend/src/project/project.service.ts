@@ -518,4 +518,24 @@ export class ProjectService {
       totalPages: Math.ceil(total / limit),
     };
   }
+
+  async deleteProjectModule(projectId: string, moduleId: string) {
+    const module = await this.prisma.projectModule.findUnique({
+      where: { id: moduleId }
+    });
+    if (!module) {
+      throw new NotFoundException(`Module not found.`);
+    }
+
+    const count = await this.prisma.testCase.count({
+      where: { moduleId }
+    });
+    if (count > 0) {
+      throw new BadRequestException(`Cannot delete module: It contains ${count} test cases.`);
+    }
+
+    return this.prisma.projectModule.delete({
+      where: { id: moduleId }
+    });
+  }
 }

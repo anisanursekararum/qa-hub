@@ -6,6 +6,39 @@ import { GoogleGenerativeAI, SchemaType, Schema } from '@google/generative-ai';
 import * as fs from 'fs';
 import * as path from 'path';
 
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 1000,
+  backoffFactor = 2
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const errorMsg = error?.message || '';
+    const isQuotaExceeded = errorMsg.includes('exceeded your current quota') ||
+                            errorMsg.includes('Quota exceeded') ||
+                            errorMsg.includes('QuotaFailure');
+    const isTransient = !isQuotaExceeded && (
+                        errorMsg.includes('503') || 
+                        errorMsg.includes('Service Unavailable') || 
+                        errorMsg.includes('429') || 
+                        errorMsg.includes('Too Many Requests') ||
+                        errorMsg.includes('experiencing high demand') ||
+                        errorMsg.includes('fetch failed') ||
+                        errorMsg.includes('ETIMEDOUT') ||
+                        errorMsg.includes('ECONNRESET') ||
+                        errorMsg.includes('socket hang up')
+    );
+    if (retries > 0 && isTransient) {
+      console.warn(`Transient Gemini API/network error: ${errorMsg}. Retrying in ${delayMs}ms... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      return retryWithBackoff(fn, retries - 1, delayMs * backoffFactor, backoffFactor);
+    }
+    throw error;
+  }
+}
+
 @Injectable()
 export class AiGeneratorService {
   private readonly genAI: GoogleGenerativeAI;
@@ -16,6 +49,46 @@ export class AiGeneratorService {
   ) {
     const apiKey = process.env.GEMINI_API_KEY;
     this.genAI = new GoogleGenerativeAI(apiKey || '');
+  }
+
+  private async generateWithDeepSeek(prompt: string, jsonSchema: any): Promise<string> {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      throw new Error('DEEPSEEK_API_KEY is not configured.');
+    }
+
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert Senior Quality Engineering Manager. You must strictly output your response as a valid JSON object matching this schema: ${JSON.stringify(jsonSchema)}`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: {
+          type: 'json_object'
+        },
+        temperature: 0.2
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`DeepSeek API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data: any = await response.json();
+    return data.choices[0].message.content;
   }
 
   /**
@@ -133,6 +206,7 @@ export class AiGeneratorService {
         'gemini-2.5-flash',
         'gemini-2.5-flash-lite',
         'gemini-2.0-flash',
+        'gemini-1.5-flash',
         'gemini-flash-latest'
       ];
 
@@ -140,29 +214,53 @@ export class AiGeneratorService {
       let success = false;
       let lastError: any = null;
 
-      for (const modelName of modelsToTry) {
+      // Try DeepSeek first if configured
+      if (process.env.DEEPSEEK_API_KEY) {
         try {
-          const model = this.genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: {
-              responseMimeType: 'application/json',
-              responseSchema: schema,
-            },
-          });
-          const result = await model.generateContent(prompt);
-          const responseText = result.response.text();
-          generatedCasesJson = JSON.parse(responseText);
+          console.log('Using DeepSeek for text generation...');
+          const resultText = await retryWithBackoff(() => this.generateWithDeepSeek(prompt, schema));
+          generatedCasesJson = JSON.parse(resultText);
           success = true;
-          break;
         } catch (error: any) {
-          console.warn(`Model ${modelName} failed in generateTestCasesFromPdf, trying next: ${error.message || error}`);
+          console.warn(`DeepSeek generation failed, falling back to Gemini: ${error.message || error}`);
           lastError = error;
+        }
+      }
+
+      // Fallback to Gemini if DeepSeek is not configured or failed
+      if (!success) {
+        console.log('Using Gemini for text generation...');
+        for (const modelName of modelsToTry) {
+          try {
+            const model = this.genAI.getGenerativeModel({
+              model: modelName,
+              generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: schema,
+              },
+            });
+            const result = await retryWithBackoff(() => model.generateContent(prompt));
+            const responseText = result.response.text();
+            generatedCasesJson = JSON.parse(responseText);
+            success = true;
+            break;
+          } catch (error: any) {
+            const errorMsg = error?.message || '';
+            const isQuotaExceeded = errorMsg.includes('exceeded your current quota') ||
+                                    errorMsg.includes('Quota exceeded') ||
+                                    errorMsg.includes('QuotaFailure');
+            if (isQuotaExceeded) {
+              throw error;
+            }
+            console.warn(`Model ${modelName} failed in generateTestCasesFromPdf, trying next: ${errorMsg}`);
+            lastError = error;
+          }
         }
       }
 
       if (!success) {
         throw new InternalServerErrorException(
-          `Google Gemini API generation or JSON parsing failed: ${lastError?.message || lastError}`
+          `AI generation or JSON parsing failed: ${lastError?.message || lastError}`
         );
       }
 

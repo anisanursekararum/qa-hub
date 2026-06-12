@@ -77,4 +77,9 @@ export class ProjectController {
   async createProjectModule(@Param('id') projectId: string, @Body() dto: CreateProjectModuleDto) {
     return this.projectService.createProjectModule(projectId, dto);
   }
+
+  @Delete(':id/modules/:moduleId')
+  async deleteProjectModule(@Param('id') projectId: string, @Param('moduleId') moduleId: string) {
+    return this.projectService.deleteProjectModule(projectId, moduleId);
+  }
 }

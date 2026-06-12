@@ -69,13 +69,13 @@ export class TestcaseController {
 
     try {
       // Emit progress event: parsing
-      this.testRunGateway.broadcastAiProgress('parsing', 'Sedang membaca dokumen PDF...');
+      this.testRunGateway.broadcastAiProgress('parsing', 'Reading PDF document...');
 
       const text = await this.pdfParserService.extractText(file.buffer);
       const chunks = this.pdfParserService.chunkText(text);
 
       // Emit progress event: matching
-      this.testRunGateway.broadcastAiProgress('matching', 'Membandingkan dengan test case yang ada di database...');
+      this.testRunGateway.broadcastAiProgress('matching', 'Comparing with existing test cases in database...');
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -83,7 +83,7 @@ export class TestcaseController {
         // Emit progress event: generating for each chunk
         this.testRunGateway.broadcastAiProgress(
           'generating',
-          `Memproses bagian ${i + 1} dari ${chunks.length}: mendeteksi perubahan dan memperbarui test case...`
+          `Processing section ${i + 1} of ${chunks.length}: detecting changes and updating test cases...`
         );
 
         const result = await this.aiTestGeneratorService.processPrdChunk(projectId, req.user.userId, chunk);
@@ -99,7 +99,7 @@ export class TestcaseController {
       // Emit progress event: done
       this.testRunGateway.broadcastAiProgress(
         'done',
-        `Selesai! ${newCount} test case baru dibuat, ${modifiedCount} diperbarui.`
+        `Done! ${newCount} new test cases created, ${modifiedCount} updated.`
       );
 
       return results;
@@ -107,7 +107,7 @@ export class TestcaseController {
       status = 'FAILED';
       this.testRunGateway.broadcastAiProgress(
         'done',
-        `Gagal memproses PRD: ${error.message || error}`
+        `Failed to process PRD: ${error.message || error}`
       );
       throw error;
     } finally {
