@@ -16,8 +16,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
             <div className="w-10 h-10 rounded-[4px] bg-white overflow-hidden flex items-center justify-center flex-shrink-0">
               <img src="/qa-hub-logo.png" alt="QA-Hub Logo" className="w-full h-full object-cover scale-[1.35]" />
             </div>
-            <span className="font-sans font-bold text-lg text-[#161616] dark:text-white tracking-wide">
-              QA<span className="text-[#0F62FE]">-Hub</span>
+            <span className="font-sans font-bold text-lg tracking-wide">
+              <span className="text-[#0F62FE]">QA</span><span className="text-[#8A3FFC]">-Hub</span>
             </span>
           </a>
         </div>

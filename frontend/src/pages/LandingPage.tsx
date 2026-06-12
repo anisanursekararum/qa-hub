@@ -21,7 +21,7 @@ const LandingPage = () => {
           <div className="flex items-center space-x-2.5">
             <img src="/qa-hub-logo.png" alt="QA-Hub Logo" className="w-10 h-10 rounded-[4px] object-contain bg-white" />
             <span className="font-sans font-black text-xl tracking-tight">
-              QA<span className="text-[#0F62FE]">-Hub</span>
+              <span className="text-[#0F62FE]">QA</span><span className="text-[#8A3FFC]">-Hub</span>
             </span>
           </div>
           <div className="flex items-center space-x-6">
