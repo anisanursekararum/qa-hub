@@ -11,7 +11,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath = '/', user = null, 
   const isLinkActive = (path: string) => currentPath === path;
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white dark:bg-[#161616] border-b border-[#E0E0E0] dark:border-[#2D2D39] transition-colors duration-200">
+    <nav className="sticky top-0 z-50 w-full bg-white dark:bg-[#161616] transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-14">
 

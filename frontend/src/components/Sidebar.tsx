@@ -9,9 +9,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const isLinkActive = (path: string) => currentPath === path;
 
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col justify-between border-r border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] h-screen sticky top-0 transition-colors duration-200">
+    <aside className="w-56 flex-shrink-0 flex flex-col justify-between bg-[#F7F7F7] dark:bg-[#161616] h-screen sticky top-0 transition-colors duration-200">
       <div>
-        <div className="h-16 flex items-center px-6 border-b border-[#E0E0E0] dark:border-[#2D2D39]">
+        <div className="h-16 flex items-center px-6">
           <a href="/" className="flex items-center space-x-2.5 focus:outline-none">
             <div className="w-10 h-10 rounded-[4px] bg-white overflow-hidden flex items-center justify-center flex-shrink-0">
               <img src="/qa-hub-logo.png" alt="QA-Hub Logo" className="w-full h-full object-cover scale-[1.35]" />
