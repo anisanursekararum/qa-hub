@@ -126,5 +126,14 @@ export const testRunsApi = {
     });
     if (!res.ok) throw new Error('Failed to trigger automation');
     return res.json();
+  },
+  sendSignOffEmail: async (id: string, recipientEmails: string[], customNotes?: string) => {
+    const res = await fetch(`${API_URL}/testrun/${id}/sign-off`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ recipientEmails, customNotes })
+    });
+    if (!res.ok) throw new Error('Failed to send sign-off email');
+    return res.json();
   }
 };

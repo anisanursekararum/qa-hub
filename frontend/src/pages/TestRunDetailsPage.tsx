@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle2, CircleDashed, Clock, ChevronLeft, Terminal, Bot, Settings2, FileText, XSquare, Loader2, Plus, Search, Filter, X } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Clock, ChevronLeft, Terminal, Bot, Settings2, FileText, XSquare, Loader2, Plus, Search, Filter, X, Send } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useProject } from '../context/ProjectContext';
 import { testRunsApi, TestRun } from '../api/testruns';
 import { getTestCases, TestCase } from '../api/testcases';
 import { DashboardLayout } from '../components/DashboardLayout';
+import { getProjectMembers } from '../api/projects';
 
 interface FilterCondition {
   id: string;
@@ -26,6 +27,15 @@ const TestRunDetailsPage = () => {
 
   // UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Sign-Off Email States
+  const [isSignOffModalOpen, setIsSignOffModalOpen] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<{ id: string, name: string, email: string, role: string }[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
+  const [additionalEmails, setAdditionalEmails] = useState('');
+  const [customNotes, setCustomNotes] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailFeedback, setEmailFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
 
   // Title editing state
@@ -142,12 +152,14 @@ const TestRunDetailsPage = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [runData, casesData] = await Promise.all([
+      const [runData, casesData, membersData] = await Promise.all([
         testRunsApi.findOne(runId!),
-        getTestCases(activeProject!.id)
+        getTestCases(activeProject!.id),
+        getProjectMembers(activeProject!.id).catch(() => [])
       ]);
       setRun(runData);
       setAllCases(casesData);
+      setProjectMembers(membersData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -223,6 +235,46 @@ const TestRunDetailsPage = () => {
       setRun(prev => prev ? { ...prev, status: 'AUTOMATION_RUNNING' } : null);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleSendSignOffEmail = async () => {
+    const emails = Array.from(selectedRecipients);
+    if (additionalEmails.trim()) {
+      const extra = additionalEmails.split(',').map(e => e.trim()).filter(Boolean);
+      emails.push(...extra);
+    }
+
+    if (emails.length === 0) {
+      setEmailFeedback({ type: 'error', message: 'Please specify at least one recipient email address.' });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = emails.filter(e => !emailRegex.test(e));
+    if (invalidEmails.length > 0) {
+      setEmailFeedback({ type: 'error', message: `Invalid email address format: ${invalidEmails.join(', ')}` });
+      return;
+    }
+
+    try {
+      setIsSendingEmail(true);
+      setEmailFeedback(null);
+      await testRunsApi.sendSignOffEmail(runId!, emails, customNotes);
+      setEmailFeedback({ type: 'success', message: 'Sign-off email report sent successfully!' });
+      
+      setTimeout(() => {
+        setIsSignOffModalOpen(false);
+        setCustomNotes('');
+        setAdditionalEmails('');
+        setSelectedRecipients(new Set());
+        setEmailFeedback(null);
+      }, 1500);
+    } catch (err: any) {
+      console.error(err);
+      setEmailFeedback({ type: 'error', message: err?.message || 'Failed to deliver sign-off email report.' });
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -384,9 +436,15 @@ const TestRunDetailsPage = () => {
                   </button>
                 )}
                 {run.status === 'DONE' && (
-                  <button onClick={() => handleStatusChange('IN_PROGRESS')} className="border border-[#0F62FE] text-[#0F62FE] px-4 py-2 rounded-[4px] font-sans text-sm font-semibold hover:bg-[#0F62FE]/10 transition-colors">
-                    Reopen Run
-                  </button>
+                  <div className="flex items-center space-x-3">
+                    <button onClick={() => setIsSignOffModalOpen(true)} className="flex items-center space-x-2 bg-[#8A3FFC] hover:bg-[#6929C4] text-white px-4 py-2 rounded-[4px] font-sans text-sm font-semibold transition-colors shadow-sm">
+                      <Send size={14} />
+                      <span>Send Sign-Off Email</span>
+                    </button>
+                    <button onClick={() => handleStatusChange('IN_PROGRESS')} className="border border-[#0F62FE] text-[#0F62FE] px-4 py-2 rounded-[4px] font-sans text-sm font-semibold hover:bg-[#0F62FE]/10 transition-colors">
+                      Reopen Run
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -777,6 +835,152 @@ const TestRunDetailsPage = () => {
                   <button onClick={() => { setIsAddModalOpen(false); setSelectedToAdd(new Set()); }} className="px-4 py-2 font-sans font-semibold text-sm text-[#161616] dark:text-white hover:bg-[#E0E0E0] dark:hover:bg-[#393939] rounded-[4px] transition-colors">Cancel</button>
                   <button onClick={handleAddItems} disabled={selectedToAdd.size === 0} className="px-4 py-2 font-sans font-semibold text-sm text-white bg-[#0F62FE] hover:bg-[#0353E9] disabled:opacity-50 disabled:cursor-not-allowed rounded-[4px] transition-colors shadow-sm">
                     Add {selectedToAdd.size} Cases
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sign-Off Email Modal */}
+          {isSignOffModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-white dark:bg-[#1C1C21] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] shadow-xl w-full max-w-2xl my-8 h-[85vh] flex flex-col animate-in zoom-in-95">
+                <div className="p-5 border-b border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] flex justify-between items-center">
+                  <div>
+                    <h3 className="font-sans font-bold text-lg text-[#161616] dark:text-white">Send Test Run Sign-Off</h3>
+                    <p className="font-sans text-xs text-[#525252] dark:text-[#A8A8A8] mt-0.5">Choose recipients, review metrics, and optionally attach custom remarks.</p>
+                  </div>
+                  <button onClick={() => { setIsSignOffModalOpen(false); setEmailFeedback(null); }} className="text-[#525252] dark:text-[#A8A8A8] hover:text-[#161616] dark:hover:text-white">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Step 1: Recipients */}
+                  <div className="space-y-3">
+                    <h4 className="font-mono text-xs font-bold text-[#525252] dark:text-[#8D8D8D] uppercase tracking-wider">1. Select Recipients</h4>
+                    
+                    <div className="space-y-2">
+                      <p className="font-sans text-xs text-[#525252] dark:text-[#A8A8A8]">Project Workspace Members:</p>
+                      {projectMembers.length === 0 ? (
+                        <p className="font-mono text-xs text-[#757575] dark:text-[#8D8D8D] bg-[#F4F4F4] dark:bg-[#121212] p-2 rounded-[2px]">No members found in project workspace.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] p-3 bg-white dark:bg-[#121212]">
+                          {projectMembers.map(m => (
+                            <label key={m.id} className="flex items-center space-x-2.5 p-1.5 hover:bg-[#F4F4F4] dark:hover:bg-[#1C1C21] rounded-[2px] cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedRecipients.has(m.email)}
+                                onChange={() => {
+                                  const newSet = new Set(selectedRecipients);
+                                  if (newSet.has(m.email)) newSet.delete(m.email);
+                                  else newSet.add(m.email);
+                                  setSelectedRecipients(newSet);
+                                }}
+                                className="w-4 h-4 rounded text-[#0F62FE] bg-[#F4F4F4] dark:bg-[#1C1C21]"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-[#161616] dark:text-white truncate">{m.name}</p>
+                                <p className="text-[10px] text-[#757575] dark:text-[#8D8D8D] truncate">{m.email}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-sans text-xs text-[#525252] dark:text-[#A8A8A8]">Additional Email Addresses (comma-separated):</label>
+                      <input
+                        type="text"
+                        value={additionalEmails}
+                        onChange={e => setAdditionalEmails(e.target.value)}
+                        placeholder="e.g. client@company.com, engineering-lead@domain.com"
+                        className="w-full font-sans text-sm p-2.5 bg-white dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] focus:outline-none focus:border-[#0F62FE] text-[#161616] dark:text-white placeholder-[#A8A8A8]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 2: Custom Remarks */}
+                  <div className="space-y-2">
+                    <h4 className="font-mono text-xs font-bold text-[#525252] dark:text-[#8D8D8D] uppercase tracking-wider">2. Sign-Off Remarks</h4>
+                    <p className="font-sans text-xs text-[#525252] dark:text-[#A8A8A8]">Add any custom highlights, release blockers resolved, or notes to append to the report body:</p>
+                    <textarea
+                      rows={4}
+                      value={customNotes}
+                      onChange={e => setCustomNotes(e.target.value)}
+                      placeholder="e.g., All key regression flows completed successfully. The build is approved for UAT deployment."
+                      className="w-full font-sans text-sm p-3 bg-white dark:bg-[#121212] border border-[#CCCCCC] dark:border-[#393939] rounded-[4px] focus:outline-none focus:border-[#0F62FE] text-[#161616] dark:text-white placeholder-[#A8A8A8]"
+                    />
+                  </div>
+
+                  {/* Step 3: Summary Preview */}
+                  <div className="space-y-2">
+                    <h4 className="font-mono text-xs font-bold text-[#525252] dark:text-[#8D8D8D] uppercase tracking-wider">3. Report Summary Preview</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#F4F4F4] dark:bg-[#121212] border border-[#E0E0E0] dark:border-[#393939] rounded-[4px] p-4 text-[#161616] dark:text-white">
+                      <div>
+                        <p className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase">Pass Rate</p>
+                        <p className="text-xl font-bold font-mono text-[#24A148]">{totalItems > 0 ? Math.round((passedItems / totalItems) * 100) : 0}%</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase">Passed</p>
+                        <p className="text-xl font-bold font-mono text-[#24A148]">{passedItems}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase">Failed</p>
+                        <p className="text-xl font-bold font-mono text-[#DA1E28]">{failedItems}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase">Total Scopes</p>
+                        <p className="text-xl font-bold font-mono">{totalItems}</p>
+                      </div>
+                      <div className="col-span-2 border-t border-[#CCCCCC] dark:border-[#393939] pt-2 mt-1">
+                        <p className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase">Environment</p>
+                        <p className="text-xs font-semibold">{run.environment || 'N/A'}</p>
+                      </div>
+                      <div className="col-span-2 border-t border-[#CCCCCC] dark:border-[#393939] pt-2 mt-1">
+                        <p className="text-[10px] font-mono text-[#757575] dark:text-[#8D8D8D] uppercase">Duration</p>
+                        <p className="text-xs font-semibold">{currentDuration}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Feedback Message */}
+                  {emailFeedback && (
+                    <div className={`p-3 rounded-[4px] border font-sans text-xs font-semibold ${
+                      emailFeedback.type === 'success' 
+                        ? 'bg-[#E2F9EB] border-[#24A148]/30 text-[#198038]' 
+                        : 'bg-[#FFF1F1] border-[#DA1E28]/30 text-[#DA1E28]'
+                    }`}>
+                      {emailFeedback.message}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 border-t border-[#E0E0E0] dark:border-[#2D2D39] bg-[#F7F7F7] dark:bg-[#161616] flex justify-end space-x-3">
+                  <button
+                    onClick={() => { setIsSignOffModalOpen(false); setEmailFeedback(null); }}
+                    disabled={isSendingEmail}
+                    className="px-4 py-2 font-sans font-semibold text-sm text-[#161616] dark:text-white hover:bg-[#E0E0E0] dark:hover:bg-[#393939] rounded-[4px] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendSignOffEmail}
+                    disabled={isSendingEmail || (selectedRecipients.size === 0 && !additionalEmails.trim())}
+                    className="flex items-center space-x-2 px-5 py-2 font-sans font-semibold text-sm text-white bg-[#8A3FFC] hover:bg-[#6929C4] disabled:opacity-50 disabled:cursor-not-allowed rounded-[4px] transition-all shadow-sm"
+                  >
+                    {isSendingEmail ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Sending Report...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={14} />
+                        <span>Send Report</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

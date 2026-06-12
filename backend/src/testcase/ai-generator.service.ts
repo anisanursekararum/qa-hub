@@ -327,6 +327,7 @@ export class AiGeneratorService {
             priority: dbPriority,
             createdById: userId,
             updatedById: userId,
+            createdVia: 'AI_GENERATED',
           },
           include: {
             module: true,

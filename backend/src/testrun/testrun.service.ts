@@ -3,15 +3,31 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTestRunDto, DuplicateTestRunDto, AddTestCasesDto, RemoveTestCasesDto, UpdateTestRunItemDto } from './dto/testrun.dto';
 import { TestRunGateway } from './testrun/testrun.gateway';
 import { Prisma } from '@prisma/client';
+import * as nodemailer from 'nodemailer';
+import { getSignOffEmailTemplate } from './templates/sign-off.template';
 
 @Injectable()
 export class TestrunService {
   private readonly logger = new Logger(TestrunService.name);
+  private transporter: nodemailer.Transporter;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly gateway: TestRunGateway,
-  ) {}
+  ) {
+    if (process.env.SMTP_URL) {
+      this.transporter = nodemailer.createTransport(process.env.SMTP_URL);
+    } else {
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        auth: {
+          user: process.env.SMTP_USER || 'ethereal.user@ethereal.email',
+          pass: process.env.SMTP_PASS || 'etherealpassword'
+        }
+      });
+    }
+  }
 
   private async generateNextRunId(projectId: string): Promise<string> {
     const today = new Date();
@@ -291,5 +307,107 @@ export class TestrunService {
 
     this.gateway.broadcastLog(runId, `[SYSTEM] Automation execution completed.`);
     await this.updateStatus(runId, 'IN_PROGRESS'); // return to IN_PROGRESS so user can review or close
+  }
+
+  async sendSignOffEmail(runId: string, recipientEmails: string[], userId: string, customNotes?: string) {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: runId },
+      include: {
+        project: {
+          select: { name: true }
+        },
+        initiatedBy: {
+          select: { name: true, email: true }
+        },
+        items: {
+          include: {
+            testCase: {
+              include: {
+                module: {
+                  select: { name: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!run) {
+      throw new NotFoundException('Test run not found');
+    }
+
+    if (run.status !== 'DONE') {
+      throw new BadRequestException('Can only send sign-off emails for runs marked as DONE');
+    }
+
+    // Calculate metrics
+    const total = run.items.length;
+    let passed = 0;
+    let failed = 0;
+    let todo = 0;
+    run.items.forEach(i => {
+      if (i.executionStatus === 'PASSED') passed++;
+      else if (i.executionStatus === 'FAILED') failed++;
+      else todo++;
+    });
+
+    const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+
+    // Formatting date
+    const formatDate = (date?: Date | null) => {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleString('en-GB', { timeZone: 'UTC' }) + ' UTC';
+    };
+
+    // Calculate duration
+    let duration = 'N/A';
+    if (run.startedAt && run.endedAt) {
+      const diffMs = new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime();
+      const diffSecs = Math.floor(diffMs / 1000);
+      const h = Math.floor(diffSecs / 3600);
+      const m = Math.floor((diffSecs % 3600) / 60);
+      const s = diffSecs % 60;
+      duration = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    const emailData = getSignOffEmailTemplate({
+      runName: run.name,
+      projectName: run.project.name,
+      environment: run.environment || 'N/A',
+      initiatedBy: run.initiatedBy ? `${run.initiatedBy.name} (${run.initiatedBy.email})` : 'System',
+      startedAt: formatDate(run.startedAt),
+      endedAt: formatDate(run.endedAt),
+      duration,
+      total,
+      passed,
+      failed,
+      todo,
+      passRate,
+      customNotes,
+      items: run.items.map(i => ({
+        publicId: i.testCase.publicId || i.testCaseId,
+        title: i.testCase.title,
+        moduleName: i.testCase.module?.name || 'Unassigned',
+        priority: i.testCase.priority,
+        hasAutomation: i.testCase.hasAutomation,
+        executionStatus: i.executionStatus
+      }))
+    });
+
+    // Send to recipients
+    try {
+      const info = await this.transporter.sendMail({
+        from: '"QA-Hub System" <no-reply@qa-hub.local>',
+        to: recipientEmails.join(', '),
+        subject: emailData.subject,
+        html: emailData.body
+      });
+      this.logger.log(`Sign-off email sent to ${recipientEmails.join(', ')}: ${nodemailer.getTestMessageUrl(info)}`);
+      return { success: true, message: 'Sign-off email sent successfully.' };
+    } catch (error) {
+      this.logger.error('Failed to send sign-off email:', error);
+      throw new BadRequestException('Failed to deliver sign-off email.');
+    }
   }
 }

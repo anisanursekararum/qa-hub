@@ -71,4 +71,14 @@ export class TestrunController {
   triggerAutomation(@Param('id') id: string) {
     return this.testrunService.triggerAutomation(id);
   }
+
+  @Post(':id/sign-off')
+  sendSignOffEmail(
+    @Param('id') id: string,
+    @Body('recipientEmails') recipientEmails: string[],
+    @Body('customNotes') customNotes: string | undefined,
+    @Req() req: any
+  ) {
+    return this.testrunService.sendSignOffEmail(id, recipientEmails, req.user.userId, customNotes);
+  }
 }
