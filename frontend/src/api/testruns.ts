@@ -1,7 +1,7 @@
 import { getHeaders } from './projects';
 import { TestCase } from './testcases';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export interface TestRunItem {
   id: string;

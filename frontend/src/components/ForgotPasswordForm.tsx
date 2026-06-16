@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
 interface ForgotPasswordFormProps {
   onSwitchToLogin: () => void;
 }
@@ -56,7 +58,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ onSwitch
     setMessage('');
 
     try {
-      const response = await fetch('/api/auth/forgot-password/request', {
+      const response = await fetch(`${API_URL}/auth/forgot-password/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -88,7 +90,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ onSwitch
     setMessage('');
 
     try {
-      const response = await fetch('/api/auth/forgot-password/reset', {
+      const response = await fetch(`${API_URL}/auth/forgot-password/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,8 +2,18 @@ import { WebSocketGateway, WebSocketServer, OnGatewayInit, OnGatewayConnection, 
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
+// Mirror HTTP CORS: restrict to Firebase Hosting origin(s) in production,
+// allow all in development. CORS_ORIGIN is a comma-separated list of allowed origins.
+const isProduction = process.env.NODE_ENV === 'production';
+const wsOrigin = isProduction
+  ? (process.env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean)
+  : true;
+
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: {
+    origin: wsOrigin,
+    credentials: true,
+  },
 })
 export class TestRunGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;

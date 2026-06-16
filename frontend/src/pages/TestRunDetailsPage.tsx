@@ -120,7 +120,7 @@ const TestRunDetailsPage = () => {
   // WebSocket Connection
   useEffect(() => {
     if (run?.status === 'AUTOMATION_RUNNING' && !socketRef.current) {
-      const socket = io('http://localhost:3000');
+      const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3000');
       socketRef.current = socket;
 
       socket.on(`run_status_${run.id}`, (data: { status: TestRun['status'] }) => {

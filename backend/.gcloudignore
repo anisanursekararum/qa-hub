@@ -1,0 +1,28 @@
+# This file instructs the gcloud tool to ignore certain files when uploading
+# to Google Cloud Storage for Cloud Build.
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# Environment files
+.env
+.env.*
+
+# Local context files (served from GCS, no need to upload as build source)
+prd.md
+standard.md
+instruction.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# Git and OS metadata
+.git/
+.gitignore
+.gitattributes
+.DS_Store
+Thumbs.db

@@ -1,0 +1,26 @@
+# Dependencies & build artifacts
+node_modules/
+dist/
+
+# Environment files — NEVER include in Docker image
+# Secrets are injected via Cloud Run environment variables
+.env
+.env.*
+
+# Context files — served from GCS bucket at runtime, not bundled
+prd.md
+standard.md
+instruction.md
+
+# Git and editor files
+.git/
+.gitignore
+.gitattributes
+
+# Development and test files
+**/*.spec.ts
+**/*.test.ts
+
+# Logs
+*.log
+npm-debug.log*

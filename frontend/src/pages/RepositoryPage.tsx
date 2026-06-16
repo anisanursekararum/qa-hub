@@ -310,7 +310,7 @@ export const RepositoryPage: React.FC = () => {
     setIsProcessing(true);
     setProgressLogs(['Connecting to WebSocket server...', 'Starting PRD document analysis...']);
 
-    const socket = io('http://localhost:3000');
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3000');
 
     socket.on('ai-progress', (data: { status: string; message: string }) => {
       setProgressLogs(prev => [...prev, data.message]);

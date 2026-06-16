@@ -2,9 +2,8 @@ import { Injectable, BadRequestException, InternalServerErrorException } from '@
 import { PrismaService } from '../prisma/prisma.service';
 import { CaseStatus, CasePriority } from '@prisma/client';
 import { PdfParserService } from './pdf-parser.service';
+import { GcsService } from '../gcs/gcs.service';
 import { GoogleGenerativeAI, SchemaType, Schema } from '@google/generative-ai';
-import * as fs from 'fs';
-import * as path from 'path';
 
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
@@ -46,6 +45,7 @@ export class AiGeneratorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pdfParserService: PdfParserService,
+    private readonly gcsService: GcsService,
   ) {
     const apiKey = process.env.GEMINI_API_KEY;
     this.genAI = new GoogleGenerativeAI(apiKey || '');
@@ -100,8 +100,11 @@ export class AiGeneratorService {
     pdfBuffer: Buffer,
     fileName: string,
   ) {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new BadRequestException('GEMINI_API_KEY is not configured in the backend environment.');
+    // At least one AI provider must be configured
+    if (!process.env.DEEPSEEK_API_KEY && !process.env.GEMINI_API_KEY) {
+      throw new BadRequestException(
+        'No AI provider configured. Please set DEEPSEEK_API_KEY or GEMINI_API_KEY in the environment.',
+      );
     }
 
     let status = 'SUCCESS';
@@ -157,27 +160,13 @@ export class AiGeneratorService {
         },
       };
 
-      // Helper to read workspace files safely
-      const readFileContent = (filename: string): string => {
-        const pathsToTry = [
-          path.resolve(process.cwd(), '..', filename),
-          path.resolve(process.cwd(), filename),
-        ];
-        for (const p of pathsToTry) {
-          if (fs.existsSync(p)) {
-            try {
-              return fs.readFileSync(p, 'utf8');
-            } catch (err) {
-              console.error(`Failed to read file ${p}:`, err);
-            }
-          }
-        }
-        return '';
-      };
-
-      const prdContent = readFileContent('prd.md');
-      const standardContent = readFileContent('standard.md');
-      const instructionContent = readFileContent('instruction.md');
+      // Read context files from GCS bucket at runtime (not bundled in Docker image).
+      // Returns empty string gracefully if GCS_BUCKET_NAME is not set or file is not found.
+      const [prdContent, standardContent, instructionContent] = await Promise.all([
+        this.gcsService.readFile('prd.md'),
+        this.gcsService.readFile('standard.md'),
+        this.gcsService.readFile('instruction.md'),
+      ]);
 
       const prompt = `
         You are a Senior Quality Engineering Manager.
